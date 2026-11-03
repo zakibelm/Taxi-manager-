@@ -4,7 +4,7 @@ import { HttpError } from '../http.mjs';
 // Toutes les données de Taxi Manager vivent dans des Data Tables n8n, derrière les workflows « … TM ».
 // Ce client est le seul point de passage : URL de base, préfixe des chemins, en-tête secret, délai, aucune redirection.
 export const DEFAULT_PREFIX = 'taximanager-tm';
-export const DEFAULT_TOKEN_HEADER = 'X-TaxiManager-Token';
+export const DEFAULT_TOKEN_HEADER = 'X-DrivePilot-Token'; // en-tête de l'identifiant Header Auth branché sur les workflows TM
 
 export function n8nBase(env) {
  if(!env.N8N_URL || !env.N8N_TOKEN) return null;

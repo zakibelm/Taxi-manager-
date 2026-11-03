@@ -62,7 +62,7 @@ test('inscription, confirmation, connexion : tout est écrit dans les tables n8n
   assert.notEqual(app.n8n.db.sessions[0].session_hash, sessionId, 'la session est stockée hachée');
   assert.equal((await app.call('/api/auth/session', { cookie: login.cookie })).data.user.email, 'ali@example.test');
   // Chaque appel vers n8n porte l'en-tête secret et le préfixe TM.
-  assert.ok(app.n8n.db.calls.every(c => c.url.includes('/webhook/taximanager-tm/api/') && c.headers['X-TaxiManager-Token'] === 'test-n8n-token'));
+  assert.ok(app.n8n.db.calls.every(c => c.url.includes('/webhook/taximanager-tm/api/') && c.headers['X-DrivePilot-Token'] === 'test-n8n-token'));
   assert.ok(app.n8n.db.attempts.every(a => /^[a-f0-9]{64}$/.test(a.ip_hash) && /^[a-f0-9]{64}$/.test(a.account_hash)), 'IP et identifiants jamais en clair');
   // Déconnexion : la session disparaît de n8n.
   assert.equal((await app.call('/api/auth/logout', { method: 'POST', cookie: login.cookie })).status, 200);

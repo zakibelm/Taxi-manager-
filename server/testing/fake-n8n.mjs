@@ -1,6 +1,6 @@
 // Faux n8n pour les tests : reproduit le contrat des workflows « … TM » (chemins, validations utiles, réponses).
 // Aucune donnée réelle, aucun réseau.
-export function createFakeN8n({ token = 'test-n8n-token', header = 'x-taximanager-token', prefix = 'taximanager-tm', now = Date.now } = {}) {
+export function createFakeN8n({ token = 'test-n8n-token', header = 'x-drivepilot-token', prefix = 'taximanager-tm', now = Date.now } = {}) {
  const db = { accounts: [], tokens: [], sessions: [], attempts: [], services: [], outbox: [], calls: [] };
  const ok = (data, status = 200) => ({ ok: true, status, json: async () => ({ success: true, ...data }) });
  const fail = status => ({ ok: false, status, json: async () => ({ error: 'refusé' }) });

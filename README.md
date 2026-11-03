@@ -4,7 +4,7 @@ Application Android (APK) et web pour les chauffeurs : saisie des courses, table
 Version dédiée, issue de DrivePilot, avec **toutes les données dans des Data Tables n8n** : rien n'est stocké sur le disque du serveur.
 
 ```
-APK Android (Capacitor) ──HTTPS──► Serveur Taxi Manager (Node) ──X-TaxiManager-Token──► Workflows n8n « … TM » ──► Data Tables taximanager_*_tm
+APK Android (Capacitor) ──HTTPS──► Serveur Taxi Manager (Node) ──X-DrivePilot-Token──► Workflows n8n « … TM » ──► Data Tables taximanager_*_tm
                                                         └──► OpenRouter (assistant, statistiques agrégées seulement)
 ```
 
@@ -20,7 +20,7 @@ L'APK n'embarque aucun secret : il affiche le site hébergé, et c'est le serveu
 | `taximanager_login_attempts_tm` | Tentatives de connexion (IP et identifiant en empreinte HMAC) | Taxi Manager - Authentification production TM |
 | `taximanager_services_tm` | Courses | Taxi Manager - Courses TM |
 
-Les webhooks sont sous `…/webhook/taximanager-tm/api/…` et exigent l'identifiant Header Auth **« Taxi Manager TM - webhook dédié »** (en-tête `X-TaxiManager-Token`). Les workflows DrivePilot ne sont pas utilisés.
+Les 3 workflows TM sont **actifs**. Leurs webhooks sont sous `https://n8n.xtream.space/webhook/taximanager-tm/api/…` et exigent l'identifiant Header Auth **« DrivePilot application - webhook dédié »** (en-tête `X-DrivePilot-Token`) : `N8N_TOKEN` prend sa valeur. Les workflows DrivePilot eux-mêmes ne sont pas utilisés. Pour séparer complètement les deux applications plus tard, il suffira de créer un identifiant dédié avec le même nom d'en-tête et une autre valeur, puis de le brancher sur les 16 webhooks TM.
 Les tables `taximanager_service_types_tm` et `taximanager_drivers_tm` existent mais ne sont pas encore utilisées.
 
 ## Démarrage
@@ -39,9 +39,9 @@ Production : `npm run build` puis `npm start` derrière un reverse proxy HTTPS (
 
 | Variable | Usage |
 |---|---|
-| `N8N_URL` | Base des webhooks, ex. `https://n8n.xtream.space/webhook`. HTTPS obligatoire hors boucle locale. |
+| `N8N_URL` | Base des webhooks : `https://n8n.xtream.space/webhook`. HTTPS obligatoire hors boucle locale. |
 | `N8N_TOKEN` | Valeur de l'identifiant Header Auth TM. Sert aussi de clé HMAC pour les empreintes d'IP. |
-| `N8N_TOKEN_HEADER`, `N8N_PREFIX` | Facultatifs : `X-TaxiManager-Token` et `taximanager-tm` par défaut. |
+| `N8N_TOKEN_HEADER`, `N8N_PREFIX` | Facultatifs : `X-DrivePilot-Token` et `taximanager-tm` par défaut. |
 | `ADMIN_EMAILS` | Courriels administrateurs (séparés par des virgules) : l'admin voit les courses de tous les chauffeurs. |
 | `PUBLIC_URL` | Adresse publique utilisée dans les liens des courriels. Obligatoire en production. |
 | `MAIL_PROVIDER` | `n8n` (défaut, SMTP du workflow Comptes TM) ou `log` (lien écrit dans le journal du serveur). |
