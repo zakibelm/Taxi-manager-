@@ -37,6 +37,18 @@ npx tsc --noEmit
 
 Production : `npm run build` puis `npm start` derrière un reverse proxy HTTPS (`TRUST_PROXY=1` seulement si ce proxy remplace `X-Forwarded-For`).
 
+### Installation sur le VPS (Hostinger)
+
+1. DNS : enregistrement **A** `taximanager` → IP du VPS (domaine `partageons.net`).
+2. Dans le terminal du VPS (hPanel › VPS › *Terminal du navigateur*) :
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/zakibelm/Taxi-manager-/main/deploy/install.sh -o install.sh
+sudo bash install.sh taximanager.partageons.net
+```
+
+Le script installe Node 22, nginx et certbot, l'application dans `/opt/taximanager`, le service systemd `taximanager` (port 3013) et le certificat HTTPS. Le jeton n8n est demandé au clavier et rangé dans `/etc/taximanager.env` (permissions 600). Si les ports 80/443 sont déjà pris par un autre serveur web que nginx, le script s'arrête sans rien modifier. Relancer la même commande met l'application à jour.
+
 | Variable | Usage |
 |---|---|
 | `N8N_URL` | Base des webhooks : `https://n8n.xtream.space/webhook`. HTTPS obligatoire hors boucle locale. |
@@ -60,7 +72,7 @@ Les réponses publiques sont identiques que le compte existe ou non. n8n limite 
 
 Le workflow GitHub Actions **APK Android** compile l'APK à chaque push sur `main`. Il est téléchargeable dans l'onglet *Actions*, dans l'artefact `TaxiManager-apk`. Pour une version publiée, pousse une étiquette, par exemple `git tag v1.0.0 && git push --tags` : l'APK est alors joint à une *Release*.
 
-Avant la première compilation, définis la variable de dépôt **`TAXIMANAGER_URL`** (*Settings › Secrets and variables › Actions › Variables*) avec l'adresse HTTPS du serveur Taxi Manager. Sans elle, l'APK ne fonctionne qu'en mode démo.
+L'APK ouvre **https://taximanager.partageons.net** (`capacitor.config.ts`). Pour viser un autre serveur, définis la variable de dépôt `TAXIMANAGER_URL` (*Settings › Secrets and variables › Actions › Variables*).
 
 L'APK est signé avec la clé de débogage Android, ce qui suffit pour l'installer directement sur les téléphones (autoriser les sources inconnues). Une publication sur Google Play demandera une clé de signature dédiée.
 

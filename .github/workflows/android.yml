@@ -3,8 +3,7 @@ name: APK Android
 # Compile l'APK Taxi Manager.
 # - À chaque push sur main et à la demande : APK téléchargeable dans l'onglet Actions (artefact).
 # - Sur une étiquette v* (ex. v1.0.0) : APK joint à une Release GitHub.
-# Variable de dépôt TAXIMANAGER_URL (Settings > Secrets and variables > Actions > Variables) :
-#   adresse HTTPS du serveur Taxi Manager, ex. https://taximanager.exemple.net
+# Serveur visé : https://taximanager.partageons.net (capacitor.config.ts), remplaçable par la variable de dépôt TAXIMANAGER_URL.
 on:
   push:
     branches: [main]
@@ -37,11 +36,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: npm test
       - run: npm run build
-
-      - name: Avertir si l'adresse du serveur manque
-        if: env.TAXIMANAGER_URL == ''
-        run: |
-          echo "::warning::TAXIMANAGER_URL n'est pas défini, l'APK ne fonctionnera qu'en mode démo."
 
       - name: Projet Android
         run: |

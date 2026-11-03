@@ -31,5 +31,6 @@
     "autoprefixer": "^10.4.21",
     "@capacitor/cli": "^7.4.3",
     "@capacitor/android": "^7.4.3"
-  }
+  },
+  "packageManager": "pnpm@10.28.0"
 }
