@@ -32,7 +32,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
+      # Le SDK Android est préinstallé sur ubuntu-latest (ANDROID_HOME) ; Gradle complète les paquets manquants.
 
       - run: pnpm install --frozen-lockfile
       - run: npm test
