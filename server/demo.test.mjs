@@ -1,0 +1,26 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
+import { randomUUID } from 'node:crypto';
+import ts from 'typescript';
+const storage=()=>{const values=new Map();return {getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};};
+test('demo CRUD/chat stay local and forged browser settings cannot grant real access',async()=>{
+ const localStorage=storage(),sessionStorage=storage();let requests=[];
+ localStorage.setItem('user_settings','legacy-settings');
+ const context={exports:{},localStorage,sessionStorage,crypto:{randomUUID},fetch:async(path)=>{requests.push(path);return {status:401,ok:false,json:async()=>({error:'Connexion requise.'})};}};
+ const code=ts.transpileModule(readFileSync('services/storage.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+ runInNewContext(code,context);
+ const backend=context.exports.backend;
+ assert.equal(localStorage.getItem('user_settings'),null);
+ const session=await backend.loginDemo();assert.equal(session.mode,'demo');assert.equal(session.user.role,'chauffeur');
+ const before=await backend.getServices();
+ const added=await backend.addService({type:'Regular',amount:12.34,date:'2026-10-12T12:00:00.000Z',description:'audit'});
+ assert.equal((await backend.getServices()).length,before.length+1);
+ await backend.sendChatMessage('bonjour');await backend.deleteService(added.id);
+ assert.equal((await backend.getServices()).length,before.length);
+ await backend.logout();assert.equal(requests.length,0);
+ localStorage.setItem('user_settings',JSON.stringify({role:'admin',useN8nBackend:true,n8nUrl:'https://malicious.example'}));
+ await assert.rejects(backend.getServices(),/Connexion requise/);
+ assert.deepEqual(requests,['/api/services']);
+});

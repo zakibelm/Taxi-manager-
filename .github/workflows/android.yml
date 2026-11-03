@@ -1,0 +1,74 @@
+name: APK Android
+
+# Compile l'APK Taxi Manager.
+# - À chaque push sur main et à la demande : APK téléchargeable dans l'onglet Actions (artefact).
+# - Sur une étiquette v* (ex. v1.0.0) : APK joint à une Release GitHub.
+# Variable de dépôt TAXIMANAGER_URL (Settings > Secrets and variables > Actions > Variables) :
+#   adresse HTTPS du serveur Taxi Manager, ex. https://taximanager.exemple.net
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      TAXIMANAGER_URL: ${{ vars.TAXIMANAGER_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+
+      - run: pnpm install --frozen-lockfile
+      - run: npm test
+      - run: npm run build
+
+      - name: Avertir si l'adresse du serveur manque
+        if: env.TAXIMANAGER_URL == ''
+        run: echo "::warning::TAXIMANAGER_URL n'est pas défini : l'APK ne fonctionnera qu'en mode démo."
+
+      - name: Projet Android
+        run: |
+          npx cap add android
+          npx --yes @capacitor/assets@3.0.5 generate --android --iconBackgroundColor '#0f172a' --splashBackgroundColor '#ffffff' || echo "::warning::Icônes non générées, icône Capacitor par défaut."
+          npx cap sync android
+
+      - name: Version de l'APK
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          sed -i "s/versionCode 1$/versionCode ${GITHUB_RUN_NUMBER}/; s/versionName \"1.0\"/versionName \"${VERSION}\"/" android/app/build.gradle
+
+      - name: Compiler
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Renommer
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir -p out && cp android/app/build/outputs/apk/debug/app-debug.apk "out/TaxiManager-${VERSION}-${GITHUB_RUN_NUMBER}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TaxiManager-apk
+          path: out/*.apk
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" out/*.apk --title "Taxi Manager $GITHUB_REF_NAME" --notes "APK Android de Taxi Manager. Installation : autoriser les sources inconnues, puis ouvrir le fichier."
