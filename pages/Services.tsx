@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Service, ServiceType, ServiceTypeEntry } from '../types';
-import { backend } from '../services/storage';
-import { Plus, Trash2, Search, Filter, X, Calendar, DollarSign, Type } from 'lucide-react';
+import { backend, servicesToCsv } from '../services/storage';
+import { Plus, Trash2, Search, Filter, X, Calendar, DollarSign, Type, Download, CloudOff } from 'lucide-react';
 import { formatDate } from '../utils/date';
 
 interface ServicesProps {
@@ -101,6 +101,17 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
     return matchesSearch && matchesFilter;
   });
 
+  const pendingCount = services.filter(s => s.pending).length;
+  /** Télécharge les courses affichées (filtres appliqués) en CSV, pour la comptabilité. */
+  const exportCsv = () => {
+    const blob = new Blob([servicesToCsv(filteredServices)], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `courses-taximanager-${new Date().toLocaleDateString('en-CA')}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-24 md:pb-0">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-2">
@@ -108,6 +119,15 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
             <h2 className="text-2xl font-bold text-slate-900">Mes Services</h2>
             <p className="text-slate-500 text-sm">Gérez l'historique de vos courses</p>
         </div>
+        <div className="flex gap-2">
+        <button
+            onClick={exportCsv}
+            disabled={filteredServices.length === 0}
+            className="flex items-center gap-2 bg-white text-slate-900 font-medium px-4 py-3 rounded-2xl border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-50"
+        >
+            <Download size={20} aria-hidden="true" />
+            <span>Exporter (CSV)</span>
+        </button>
         <button 
             onClick={openModal}
             className="flex items-center gap-2 bg-slate-900 text-white font-medium px-5 py-3 rounded-2xl hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200"
@@ -115,7 +135,15 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
             <Plus size={20} />
             <span>Ajouter une course</span>
         </button>
+        </div>
       </div>
+
+      {pendingCount > 0 && (
+        <p role="status" className="flex items-center gap-2 mx-2 px-4 py-3 rounded-2xl bg-amber-50 text-amber-800 text-sm">
+          <CloudOff size={18} aria-hidden="true" />
+          {pendingCount === 1 ? '1 course saisie hors ligne sera envoyée' : `${pendingCount} courses saisies hors ligne seront envoyées`} au retour de la connexion.
+        </p>
+      )}
 
       {error && !isModalOpen && <p role="alert" className="text-red-700">{error}</p>}
       {/* Filters */}
@@ -151,6 +179,7 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
               <div className="flex items-center gap-2">
                 <span className="font-bold text-slate-900">{service.amount.toFixed(2)} $</span>
                 <span className="text-slate-500 text-sm">{formatDate(service.date)}</span>
+                {service.pending && <span className="text-xs font-bold text-amber-700">En attente</span>}
               </div>
               <div className="mt-1 flex items-center gap-2 min-w-0">
                 <span className="shrink-0 inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">{service.type}</span>
@@ -201,6 +230,7 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
                                 </td>
                                 <td className="px-6 py-5 font-bold text-slate-900">
                                     {service.amount.toFixed(2)} $
+                                    {service.pending && <span className="ml-2 text-xs font-bold text-amber-700">En attente</span>}
                                 </td>
                                 <td className="px-6 py-5 text-slate-400 text-sm hidden md:table-cell max-w-xs truncate">
                                     {service.description || '-'}
@@ -344,4 +374,4 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
   );
 };
 
-export default Services;
+export default Services;
