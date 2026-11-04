@@ -17,6 +17,24 @@ export function normalizeTypeName(value: string): string {
 
 const DEFAULT_SETTINGS: UserSettings = { enableRAG: true };
 
+// --- Hors ligne : file d'envoi et dernière liste connue (téléphone du chauffeur uniquement, vidées à la déconnexion) ---
+const PENDING = 'taximanager_pending_services';
+const CACHE = 'taximanager_services_cache';
+type NewService = Pick<Service, 'type' | 'amount' | 'date' | 'description'>;
+type PendingService = NewService & { id: string; driver_email: string; created_at: string };
+/** Erreur réseau (pas de connexion, serveur injoignable) : distincte d'un refus du serveur. */
+class OfflineError extends Error {}
+const readJson = <T,>(key: string, fallback: T): T => { try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return v ?? fallback; } catch { return fallback; } };
+
+/** Export CSV (séparateur « ; », lisible par Excel en français ; montants en $ CA). */
+export function servicesToCsv(rows: Service[]): string {
+  const cell = (v: unknown) => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const lines = [['Date', 'Type', 'Montant ($ CA)', 'Note', 'Chauffeur', 'Statut'].join(';')];
+  for (const r of [...rows].sort((a, b) => a.date.localeCompare(b.date)))
+    lines.push([r.date.slice(0, 10), r.type, r.amount.toFixed(2).replace('.', ','), r.description ?? '', r.driver_email, r.pending ? 'En attente d’envoi' : 'Enregistrée'].map(cell).join(';'));
+  return '\uFEFF' + lines.join('\r\n');
+}
+
 class BackendService {
   constructor() { localStorage.removeItem('user_settings'); }
 
@@ -26,11 +44,12 @@ class BackendService {
 
   private async api(path: string, method = 'GET', body?: unknown) {
 
-    const response = await fetch(path, { method, credentials: 'same-origin',
-
-      headers: { 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
-
-    const data = await response.json();
+    let response: Response;
+    try {
+      response = await fetch(path, { method, credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    } catch { throw new OfflineError('Pas de connexion.'); }
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) throw new Error(data.error || 'Service indisponible.');
 
@@ -41,6 +60,7 @@ class BackendService {
   async login(identifier: string, password: string): Promise<UserSession> {
 
     const session = await this.api('/api/auth/login', 'POST', { identifier, password });
+    localStorage.setItem('taximanager_last_user', JSON.stringify({ email: session.user.email, user: session.user }));
 
     this.demo = false;
 
@@ -61,19 +81,29 @@ class BackendService {
 
     if (sessionStorage.getItem('taximanager_demo') === '1') return this.loginDemo();
 
-    const response = await fetch('/api/auth/session', { credentials: 'same-origin' });
-
+    let response: Response;
+    try { response = await fetch('/api/auth/session', { credentials: 'same-origin' }); }
+    catch {
+      // Hors ligne : on garde la dernière identité connue pour permettre la saisie ; le serveur revérifie à l'envoi.
+      const last = readJson<{ email?: string; user?: UserSession['user'] }>('taximanager_last_user', {});
+      if (last.user) return { user: last.user };
+      throw new Error('Session indisponible.');
+    }
     if (!response.ok) throw new Error('Session indisponible.');
     const data = await response.json();
+    if (data && data.user) localStorage.setItem('taximanager_last_user', JSON.stringify({ email: data.user.email, user: data.user }));
+    else localStorage.removeItem('taximanager_last_user');
     return data && data.user ? data : null;
 
   }
 
   async logout(): Promise<void> {
 
-    if (!this.demo) await this.api('/api/auth/logout', 'POST');
+    if (!this.demo) await this.api('/api/auth/logout', 'POST').catch(() => {});
 
     this.demo = false;
+    // Courses en attente et cache : liés à ce téléphone et à ce compte, jamais laissés à l'utilisateur suivant.
+    localStorage.removeItem(PENDING); localStorage.removeItem(CACHE); localStorage.removeItem('taximanager_last_user');
 
     this.conversations = [];
 
@@ -107,17 +137,61 @@ class BackendService {
 
   }
 
+  private pending(): PendingService[] { const rows = readJson<PendingService[]>(PENDING, []); return Array.isArray(rows) ? rows : []; }
+  private savePending(rows: PendingService[]) { if (rows.length) localStorage.setItem(PENDING, JSON.stringify(rows)); else localStorage.removeItem(PENDING); }
+  private asService(p: PendingService): Service { return { ...p, updated_at: p.created_at, pending: true }; }
+  /** Nombre de courses saisies hors ligne pas encore envoyées. */
+  pendingCount(): number { return this.demo ? 0 : this.pending().length; }
+
+  /** Envoie la file d'attente ; chaque course porte son identifiant, un renvoi ne crée donc pas de doublon. */
+  async flushPending(): Promise<number> {
+    if (this.demo) return 0;
+    let sent = 0;
+    for (const p of this.pending()) {
+      try {
+        await this.api('/api/services', 'POST', { id: p.id, type: p.type, amount: p.amount, date: p.date, description: p.description ?? '' });
+        this.savePending(this.pending().filter(x => x.id !== p.id)); sent++;
+      } catch (error) {
+        if (error instanceof OfflineError) break;            // toujours hors ligne : on réessaiera
+        if (/connexion requise/i.test(String((error as Error).message))) break; // session expirée : garder pour après reconnexion
+        // Refus définitif (type archivé, montant invalide…) : la course reste en file, visible, à supprimer par le chauffeur.
+      }
+    }
+    return sent;
+  }
+
   async getServices(): Promise<Service[]> {
 
     if (this.demo) return this.demoRows();
 
-    return (await this.api('/api/services')).services;
+    await this.flushPending().catch(() => 0);
+    let rows: Service[];
+    try {
+      rows = (await this.api('/api/services')).services;
+      localStorage.setItem(CACHE, JSON.stringify(rows));
+    } catch (error) {
+      if (!(error instanceof OfflineError)) throw error;
+      rows = readJson<Service[]>(CACHE, []);                  // hors ligne : dernière liste connue
+    }
+    const known = new Set(rows.map(r => r.id));
+    return [...this.pending().filter(p => !known.has(p.id)).map(p => this.asService(p)), ...rows];
 
   }
 
-  async addService(data: Pick<Service, 'type' | 'amount' | 'date' | 'description'>): Promise<Service> {
+  async addService(data: NewService): Promise<Service> {
 
-    if (!this.demo) return (await this.api('/api/services', 'POST', data)).service;
+    if (!this.demo) {
+      const id = crypto.randomUUID();
+      try { return (await this.api('/api/services', 'POST', { ...data, id })).service; }
+      catch (error) {
+        if (!(error instanceof OfflineError)) throw error;
+        // Pas de réseau : la course est gardée sur le téléphone et envoyée au retour de la connexion.
+        const user = readJson<{ email?: string }>('taximanager_last_user', {});
+        const p: PendingService = { ...data, description: data.description ?? '', id, driver_email: user.email || '', created_at: new Date().toISOString() };
+        this.savePending([...this.pending(), p]);
+        return this.asService(p);
+      }
+    }
 
     const value = { ...data, id: crypto.randomUUID(), driver_email: 'demo@example.test', created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
 
@@ -129,7 +203,10 @@ class BackendService {
 
   async deleteService(id: string): Promise<void> {
 
-    if (!this.demo) { await this.api('/api/services/' + encodeURIComponent(id), 'DELETE'); return; }
+    if (!this.demo) {
+      if (this.pending().some(p => p.id === id)) { this.savePending(this.pending().filter(p => p.id !== id)); return; }
+      await this.api('/api/services/' + encodeURIComponent(id), 'DELETE'); return;
+    }
 
     localStorage.setItem(DEMO_SERVICES, JSON.stringify(this.demoRows().filter(s => s.id !== id)));
 
@@ -142,7 +219,16 @@ class BackendService {
   }
   async getServiceTypes(): Promise<ServiceTypeEntry[]> {
     if (this.demo) return this.demoTypes();
-    return (await this.api('/api/service-types')).types;
+    try {
+      const types = (await this.api('/api/service-types')).types;
+      localStorage.setItem('taximanager_types_cache', JSON.stringify(types));
+      return types;
+    } catch (error) {
+      if (!(error instanceof OfflineError)) throw error;
+      const cached = readJson<ServiceTypeEntry[] | null>('taximanager_types_cache', null);
+      if (Array.isArray(cached) && cached.length) return cached;
+      throw error;
+    }
   }
   async addServiceType(value: string): Promise<ServiceTypeEntry[]> {
     const name = normalizeTypeName(value);
