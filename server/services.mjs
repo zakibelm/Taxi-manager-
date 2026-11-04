@@ -15,8 +15,16 @@ export function createServicesMiddleware({ getUser, provider, env = process.env 
    }
    if(req.method==='POST' && url.pathname==='/api/services') {
     const body = await jsonBody(req);
-    const input=validate(()=>serviceInput(body,false,serviceTypes(env)));
-    const service = await provider.create({...input,driver_email:user.email});
+    const {id,...input}=validate(()=>serviceInput(body,false,serviceTypes(env)));
+    if(id) {
+     // Renvoi d'une course déjà reçue (file hors ligne) : on rend l'existante au lieu de créer un doublon.
+     const existing=(await provider.list(user)).find(s=>s.id===id);
+     if(existing) {
+      if(existing.driver_email!==user.email) throw new HttpError(409,'Identifiant déjà utilisé.');
+      return reply(res,200,{service:existing});
+     }
+    }
+    const service = await provider.create({...input,driver_email:user.email},id);
     return reply(res,201,{service});
    }
    if(req.method==='DELETE' && url.pathname.startsWith('/api/services/')) {

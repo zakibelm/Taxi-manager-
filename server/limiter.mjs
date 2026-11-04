@@ -1,8 +1,10 @@
 import { isIP } from 'node:net';
 export function clientIP(req, env = process.env) {
  if(env.TRUST_PROXY==='1') {
-  // Only enable behind a reverse proxy which OVERWRITES X-Forwarded-For.
-  const value=req.headers['x-forwarded-for']?.split(',')[0].trim();
+  // Only enable behind ONE trusted reverse proxy. The last entry is the address that proxy saw:
+  // nginx (X-Forwarded-For $remote_addr) writes a single entry, Traefik appends the client to whatever
+  // the client sent — taking the first entry there would let anyone choose their own IP.
+  const value=req.headers['x-forwarded-for']?.split(',').at(-1).trim();
   if(value && isIP(value)) return value;
  }
  return req.socket.remoteAddress || 'local';

@@ -44,7 +44,10 @@ export function createAuthMiddleware({ store, env = process.env, now = Date.now 
   let session;
   try { session = await store.sessions.get(hash); } catch { return null; } // n8n indisponible : non connecté, jamais un repli
   if(!session || !(session.expires > now())) return null;
-  const acc = await store.accounts.get(session.user.email).catch(() => null);
+  // n8n indisponible pendant la lecture du compte : « non connecté » pour cette requête, mais la session est conservée
+  // (une coupure réseau ne doit pas déconnecter les chauffeurs). Seul un compte réellement absent ou modifié la supprime.
+  let acc;
+  try { acc = await store.accounts.get(session.user.email); } catch { return null; }
   if(!acc || !acc.verified || acc.id !== String(session.user.id) || (session.authVersion && session.authVersion !== acc.authVersion)) {
    store.sessions.delete(hash).catch(() => {});
    return null;

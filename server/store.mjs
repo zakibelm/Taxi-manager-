@@ -21,8 +21,9 @@ function account(row) {
 }
 
 export function createN8nStore(client, env = process.env) {
- // Les IP et identifiants ne sont jamais écrits en clair dans n8n : empreinte HMAC avec le secret serveur.
- const pepper = env.N8N_TOKEN || '';
+ // Les IP et identifiants ne sont jamais écrits en clair dans n8n : empreinte HMAC avec un secret serveur.
+ // HMAC_SECRET (dédié) ; repli sur N8N_TOKEN pour les installations existantes.
+ const pepper = env.HMAC_SECRET || env.N8N_TOKEN || '';
  const fingerprint = (kind, value) => createHmac('sha256', pepper).update(`${kind}:${value}`).digest('hex');
  return {
   accounts: {
