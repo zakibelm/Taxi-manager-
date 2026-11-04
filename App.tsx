@@ -71,6 +71,15 @@ const App: React.FC = () => {
 
   }, [session]);
 
+  // Retour du réseau : envoi des courses saisies hors ligne, puis rechargement.
+  useEffect(() => {
+    if (!session) return;
+    const onOnline = () => { refreshServices(); refreshServiceTypes(); };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
 
 
   const refreshServiceTypes = async () => {

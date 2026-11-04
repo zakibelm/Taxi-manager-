@@ -35,7 +35,7 @@ npm test                     # tests serveur avec un faux n8n (aucun appel rése
 npx tsc --noEmit
 ```
 
-Production : `npm run build` puis `npm start` derrière un reverse proxy HTTPS (`TRUST_PROXY=1` seulement si ce proxy remplace `X-Forwarded-For`).
+Production : `npm run build` puis `npm start` derrière un reverse proxy HTTPS (`TRUST_PROXY=1` derrière un seul proxy de confiance : la dernière adresse de `X-Forwarded-For`, celle écrite par le proxy, fait foi).
 
 ### Installation sur le VPS (Hostinger)
 
@@ -47,12 +47,13 @@ curl -fsSL https://raw.githubusercontent.com/zakibelm/Taxi-manager-/main/deploy/
 sudo bash install.sh taximanager.partageons.net
 ```
 
-Le script installe Node 22, nginx et certbot, l'application dans `/opt/taximanager`, le service systemd `taximanager` (port 3013) et le certificat HTTPS. Le jeton n8n est demandé au clavier et rangé dans `/etc/taximanager.env` (permissions 600). Si les ports 80/443 sont déjà pris par un autre serveur web que nginx, le script s'arrête sans rien modifier. Relancer la même commande met l'application à jour.
+Le script installe Node 22, nginx et certbot, l'application dans `/opt/taximanager`, le service systemd `taximanager` (port 3013) et le certificat HTTPS. Le jeton n8n est demandé au clavier et rangé dans `/etc/taximanager.env` (permissions 600). Si les ports 80/443 sont déjà pris par un autre serveur web (Traefik dans Docker, Caddy…), le script passe en **mode proxy externe** : il n'installe pas nginx, ne touche pas à ce proxy, fait écouter l'application sur le pont `docker0` (ou `127.0.0.1`) et génère la route Traefik `deploy/route-taximanager.yml` à ajouter à la configuration dynamique. Relancer la même commande met l'application à jour.
 
 | Variable | Usage |
 |---|---|
 | `N8N_URL` | Base des webhooks : `https://n8n.xtream.space/webhook`. HTTPS obligatoire hors boucle locale. |
-| `N8N_TOKEN` | Valeur de l'identifiant Header Auth TM. Sert aussi de clé HMAC pour les empreintes d'IP. |
+| `N8N_TOKEN` | Valeur de l'identifiant Header Auth TM. |
+| `HMAC_SECRET` | Clé des empreintes HMAC (IP, identifiants) dans n8n, générée par `install.sh`. À défaut, `N8N_TOKEN` est utilisé. |
 | `N8N_TOKEN_HEADER`, `N8N_PREFIX` | Facultatifs : `X-DrivePilot-Token` et `taximanager-tm` par défaut. |
 | `ADMIN_EMAILS` | Courriels administrateurs (séparés par des virgules) : l'admin voit les courses de tous les chauffeurs. |
 | `PUBLIC_URL` | Adresse publique utilisée dans les liens des courriels. Obligatoire en production. |
@@ -74,7 +75,12 @@ Le workflow GitHub Actions **APK Android** compile l'APK à chaque push sur `mai
 
 L'APK ouvre **https://taximanager.partageons.net** (`capacitor.config.ts`). Pour viser un autre serveur, définis la variable de dépôt `TAXIMANAGER_URL` (*Settings › Secrets and variables › Actions › Variables*).
 
-L'APK est signé avec la clé de débogage Android, ce qui suffit pour l'installer directement sur les téléphones (autoriser les sources inconnues). Une publication sur Google Play demandera une clé de signature dédiée.
+Signature : si les secrets de dépôt `ANDROID_KEYSTORE_BASE64` (fichier .jks en base64), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` et `ANDROID_KEY_PASSWORD` sont définis, l'APK est compilé en *release* et signé avec cette clé : les mises à jour s'installent par-dessus sans désinstaller. Sans ces secrets, l'APK reste signé avec la clé de débogage. Créer la clé une fois : `keytool -genkeypair -v -keystore taximanager.jks -alias taximanager -keyalg RSA -keysize 2048 -validity 10000`, puis `base64 -w0 taximanager.jks`. Garder le .jks hors du dépôt : le perdre empêche toute mise à jour de l'APK installé.
+
+## Hors ligne et export
+
+- **Hors ligne** : un service worker garde l'interface en cache. Une course saisie sans réseau est conservée sur le téléphone (marquée « En attente ») et envoyée au retour de la connexion. Chaque course porte un identifiant généré par l'application : un renvoi après coupure ne crée pas de doublon. File et cache sont effacés à la déconnexion.
+- **Export CSV** : bouton « Exporter (CSV) » dans *Mes Services*, filtres appliqués (séparateur `;`, montants en $ CA, lisible par Excel en français).
 
 En local, avec Android Studio : `TAXIMANAGER_URL=https://… npx cap add android`, puis `npm run android:sync` et `npm run android:open`.
 
@@ -85,3 +91,5 @@ En local, avec Android Studio : `TAXIMANAGER_URL=https://… npx cap add android
 - Le serveur impose le propriétaire des courses : un chauffeur ne voit et ne supprime que les siennes.
 - Assistant : seules des statistiques agrégées sont envoyées. Les messages contenant un courriel, un téléphone ou un numéro de carte sont refusés.
 - Mode démo : données fictives gardées dans le navigateur, jamais envoyées à n8n ni à OpenRouter.
+- Une panne passagère de n8n ne ferme pas les sessions : seule l'absence réelle du compte ou un changement de mot de passe les invalide.
+- À faire côté n8n : un workflow planifié qui purge chaque nuit les sessions, liens et tentatives expirés (durée de conservation, Loi 25).

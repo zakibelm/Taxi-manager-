@@ -14,3 +14,8 @@ root.render(
     <App />
   </React.StrictMode>
 );
+
+// Hors ligne : coquille mise en cache par le service worker (production seulement, HTTPS).
+if (location.protocol === 'https:' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });
+}

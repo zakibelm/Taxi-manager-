@@ -26,6 +26,8 @@ export interface Service {
   description?: string;
   created_at: string;
   updated_at: string;
+  /** Saisie hors ligne, pas encore envoyée au serveur. */
+  pending?: boolean;
 }
 
 export interface MonthlyGoal {
