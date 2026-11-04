@@ -30,12 +30,20 @@ say "Paquets système"
 apt-get update -qq
 apt-get install -y -qq git curl ca-certificates >/dev/null
 
-# Ports 80/443 : on ne touche à rien si un autre serveur web (Docker, Caddy, Traefik…) les occupe déjà.
+# Ports 80/443 : si un autre serveur web (Traefik/Docker, Caddy…) les occupe déjà, on n'installe PAS nginx
+# (mode « proxy externe ») : l'application est installée et la route à ajouter dans ce proxy est générée.
 OTHERS=$(ss -ltnpH '( sport = :80 or sport = :443 )' 2>/dev/null | grep -o 'users:(("[^"]*' | sed 's/.*"//' | sort -u | grep -vx nginx | tr '\n' ' ' || true)
 if [ -n "$OTHERS" ]; then
-  stop "Les ports 80/443 sont déjà utilisés par : $OTHERS. Pour ne rien casser (n8n, DrivePilot…), le script s'arrête. Envoie ce message à Claude : il adaptera la configuration à ce serveur web."
+  PROXY_MODE=external
+  # Traefik dans Docker joint l'hôte par le pont docker0 ; sinon (Caddy, Apache sur l'hôte) par la boucle locale.
+  BIND=$(ip -4 -o addr show docker0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1 || true)
+  BIND="${BIND:-127.0.0.1}"
+  say "Ports 80/443 déjà utilisés par : $OTHERS → mode proxy externe (nginx non installé, ce proxy n'est pas modifié)"
+else
+  PROXY_MODE=nginx
+  BIND=127.0.0.1
+  apt-get install -y -qq nginx certbot python3-certbot-nginx >/dev/null
 fi
-apt-get install -y -qq nginx certbot python3-certbot-nginx >/dev/null
 
 if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 22 ]; then
   say "Node.js 22"
@@ -58,11 +66,11 @@ if [ ! -f "$ENV_FILE" ]; then
   read -rsp "Valeur du jeton n8n (identifiant « DrivePilot application - webhook dédié ») : " N8N_TOKEN </dev/tty; echo
   [ -n "$N8N_TOKEN" ] || stop "Jeton n8n vide."
   read -rp "Courriel(s) administrateur [zakibelm66@gmail.com] : " ADMINS </dev/tty
-  read -rp "Clé OpenRouter pour l'assistant (Entrée pour plus tard) : " OPENROUTER </dev/tty
+  read -rsp "Clé OpenRouter pour l'assistant (Entrée pour plus tard) : " OPENROUTER </dev/tty; echo
   umask 077
   cat > "$ENV_FILE" <<EOF
 NODE_ENV=production
-HOST=127.0.0.1
+HOST=$BIND
 PORT=$PORT
 TRUST_PROXY=1
 PUBLIC_URL=https://$DOMAIN
@@ -76,6 +84,12 @@ OPENROUTER_API_KEY=$OPENROUTER
 EOF
   chmod 600 "$ENV_FILE"
 fi
+# Secret HMAC dédié (empreintes d'IP et d'identifiants), distinct du jeton n8n ; ajouté aux installations existantes.
+if ! grep -q '^HMAC_SECRET=' "$ENV_FILE"; then
+  echo "HMAC_SECRET=$(node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))")" >> "$ENV_FILE"
+fi
+# Adresse d'écoute alignée sur le mode détecté (une relance après un changement de proxy reste cohérente).
+sed -i "s/^HOST=.*/HOST=$BIND/" "$ENV_FILE"
 
 say "Service systemd"
 cat > /etc/systemd/system/$SERVICE.service <<EOF
@@ -101,6 +115,36 @@ EOF
 systemctl daemon-reload
 systemctl enable -q --now $SERVICE
 systemctl restart $SERVICE
+
+if [ "$PROXY_MODE" = external ]; then
+  ROUTE="$APP_DIR/deploy/route-$SERVICE.yml"
+  cat > "$ROUTE" <<EOF
+# Route Traefik (fournisseur « file ») : copier dans le dossier de configuration dynamique de Traefik.
+http:
+  routers:
+    $SERVICE:
+      rule: "Host(\`$DOMAIN\`)"
+      entryPoints: [websecure]
+      service: $SERVICE
+      tls:
+        certResolver: letsencrypt   # adapter au nom du résolveur de ton Traefik
+  services:
+    $SERVICE:
+      loadBalancer:
+        servers:
+          - url: "http://$BIND:$PORT"
+EOF
+  sleep 2
+  CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://$BIND:$PORT/api/auth/session" || true)
+  [ "$CODE" = 200 ] || { echo "L'application ne répond pas ($CODE). Journal :"; journalctl -u $SERVICE -n 30 --no-pager; exit 1; }
+  printf '\n\033[1;32m✔ Taxi Manager tourne sur http://%s:%s\033[0m\n' "$BIND" "$PORT"
+  echo "Il reste à brancher $DOMAIN dans le proxy existant ($OTHERS) :"
+  echo "  • Traefik : route générée dans $ROUTE (fournisseur file), ou labels équivalents."
+  echo "  • Caddy   : $DOMAIN { reverse_proxy $BIND:$PORT }"
+  echo "Si ufw filtre docker0 : ufw allow in on docker0 to $BIND port $PORT proto tcp"
+  echo "Journal : journalctl -u $SERVICE -f    Mise à jour : relancer ce script."
+  exit 0
+fi
 
 say "nginx ($DOMAIN → 127.0.0.1:$PORT)"
 cat > /etc/nginx/sites-available/$SERVICE <<EOF
