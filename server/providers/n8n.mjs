@@ -55,8 +55,8 @@ export function createServicesProvider(client) {
     : await client.call('services/list', { query: { email: user.email }, unavailable });
    return rows(data).filter(s => user.role === 'admin' || s.driver_email === user.email);
   },
-  async create(data) {
-   return (await client.call('services/create', { method: 'POST', body: { ...data, service_id: randomUUID() }, unavailable })).service;
+  async create(data, id) {
+   return (await client.call('services/create', { method: 'POST', body: { ...data, service_id: id || randomUUID() }, unavailable })).service;
   },
   async delete(id, owner) { await client.call('services/delete', { method: 'DELETE', body: { id, driver_email: owner }, unavailable }); }
  };
