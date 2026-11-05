@@ -67,6 +67,8 @@ if [ ! -f "$ENV_FILE" ]; then
   [ -n "$N8N_TOKEN" ] || stop "Jeton n8n vide."
   read -rp "Courriel(s) administrateur [zakibelm66@gmail.com] : " ADMINS </dev/tty
   read -rsp "Clé OpenRouter pour l'assistant (Entrée pour plus tard) : " OPENROUTER </dev/tty; echo
+  echo "Chauffeurs autorisés : courriels ou domaines (@flotte.ca), séparés par des virgules."
+  read -rp "Vide = toute personne qui confirme son courriel peut s'inscrire : " ALLOWED </dev/tty
   umask 077
   cat > "$ENV_FILE" <<EOF
 NODE_ENV=production
@@ -81,12 +83,17 @@ N8N_PREFIX=taximanager-tm
 ADMIN_EMAILS=${ADMINS:-zakibelm66@gmail.com}
 MAIL_PROVIDER=n8n
 OPENROUTER_API_KEY=$OPENROUTER
+ALLOWED_EMAILS=$ALLOWED
 EOF
   chmod 600 "$ENV_FILE"
 fi
 # Secret HMAC dédié (empreintes d'IP et d'identifiants), distinct du jeton n8n ; ajouté aux installations existantes.
 if ! grep -q '^HMAC_SECRET=' "$ENV_FILE"; then
   echo "HMAC_SECRET=$(node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))")" >> "$ENV_FILE"
+fi
+# Liste des chauffeurs autorisés : ligne ajoutée vide aux installations existantes (comportement inchangé).
+if ! grep -q '^ALLOWED_EMAILS=' "$ENV_FILE"; then
+  echo "ALLOWED_EMAILS=" >> "$ENV_FILE"
 fi
 # Adresse d'écoute alignée sur le mode détecté (une relance après un changement de proxy reste cohérente).
 sed -i "s/^HOST=.*/HOST=$BIND/" "$ENV_FILE"
@@ -104,6 +111,7 @@ EnvironmentFile=$ENV_FILE
 ExecStart=$(command -v node) server/main.mjs
 Restart=always
 RestartSec=3
+TimeoutStopSec=15
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
@@ -135,7 +143,7 @@ http:
           - url: "http://$BIND:$PORT"
 EOF
   sleep 2
-  CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://$BIND:$PORT/api/auth/session" || true)
+  CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://$BIND:$PORT/api/health" || true)
   [ "$CODE" = 200 ] || { echo "L'application ne répond pas ($CODE). Journal :"; journalctl -u $SERVICE -n 30 --no-pager; exit 1; }
   printf '\n\033[1;32m✔ Taxi Manager tourne sur http://%s:%s\033[0m\n' "$BIND" "$PORT"
   echo "Il reste à brancher $DOMAIN dans le proxy existant ($OTHERS) :"
@@ -168,10 +176,11 @@ certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$(grep ^ADMIN_EMA
 
 say "Vérification"
 sleep 2
-CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://$DOMAIN/api/auth/session" || true)
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://$DOMAIN/api/health" || true)
 if [ "$CODE" = 200 ]; then
   printf '\n\033[1;32m✔ Taxi Manager est en ligne : https://%s\033[0m\n' "$DOMAIN"
   echo "Journal : journalctl -u $SERVICE -f    Mise à jour : relancer ce script."
+  echo "Réglages : $ENV_FILE (puis systemctl restart $SERVICE). Avertissements : journalctl -u $SERVICE | grep configuration"
 else
   echo "Réponse inattendue ($CODE). Journal :"; journalctl -u $SERVICE -n 30 --no-pager; exit 1
 fi

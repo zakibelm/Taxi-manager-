@@ -1,4 +1,4 @@
-import { Service, ServiceTypeEntry, AIConversation, UserSession, UserSettings } from '../types';
+import type { Service, ServiceTypeEntry, AIConversation, UserSession, UserSettings } from '../types.ts';
 
 
 
@@ -25,7 +25,7 @@ type PendingService = NewService & { id: string; driver_email: string; created_a
 /** Erreur réseau (pas de connexion, serveur injoignable) : distincte d'un refus du serveur. */
 class OfflineError extends Error {}
 /** Refus du serveur, avec son code HTTP (401 = session expirée). */
-export class ApiError extends Error { constructor(message: string, public status: number) { super(message); } }
+export class ApiError extends Error { status: number; constructor(message: string, status: number) { super(message); this.status = status; } }
 const readJson = <T,>(key: string, fallback: T): T => { try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return v ?? fallback; } catch { return fallback; } };
 
 /** Export CSV (séparateur « ; », lisible par Excel en français ; montants en $ CA). */

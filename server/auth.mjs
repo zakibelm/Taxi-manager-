@@ -5,6 +5,7 @@ import { HttpError, jsonBody, reply, sameOrigin, validate } from './http.mjs';
 import { object, text } from './validation.mjs';
 import { createLoginLimiter, clientIP } from './limiter.mjs';
 import { adminEmails, normalizeEmail, sha256 } from './store.mjs';
+import { createAccessPolicy } from './access.mjs';
 
 const derive = promisify(scrypt);
 export const SESSION_LIFETIME = 8 * 60 * 60 * 1000;
@@ -29,6 +30,7 @@ export async function checkPassword(password, account) {
 export function createAuthMiddleware({ store, env = process.env, now = Date.now }) {
  const limiter = createLoginLimiter(now);
  const admins = adminEmails(env);
+ const access = createAccessPolicy(env);
  const cache = new Map(); // empreinte -> { user, expires, checked }
  let active = 0;
  const cookieId = req => (req.headers.cookie || '').split(';').map(v => v.trim()).find(v => v.startsWith(COOKIE + '='))?.slice(COOKIE.length + 1);
@@ -48,7 +50,7 @@ export function createAuthMiddleware({ store, env = process.env, now = Date.now 
   // (une coupure réseau ne doit pas déconnecter les chauffeurs). Seul un compte réellement absent ou modifié la supprime.
   let acc;
   try { acc = await store.accounts.get(session.user.email); } catch { return null; }
-  if(!acc || !acc.verified || acc.id !== String(session.user.id) || (session.authVersion && session.authVersion !== acc.authVersion)) {
+  if(!acc || !acc.verified || !access.allowed(acc.email) || acc.id !== String(session.user.id) || (session.authVersion && session.authVersion !== acc.authVersion)) {
    store.sessions.delete(hash).catch(() => {});
    return null;
   }
@@ -94,6 +96,7 @@ export function createAuthMiddleware({ store, env = process.env, now = Date.now 
     if(!ok) { limiter.failure(key); throw new HttpError(401, 'Identifiant ou mot de passe incorrect.'); }
     // Mot de passe correct : l'état du compte n'est révélé qu'à son titulaire.
     if(!acc.verified) throw new HttpError(403, 'Confirmez d’abord votre adresse courriel (lien reçu à l’inscription).');
+    if(!access.allowed(acc.email)) throw new HttpError(403, 'Ce compte n’est pas autorisé. Contactez l’administrateur.');
     limiter.success(key);
     const old = cookieId(req);
     if(old && /^[a-f0-9]{64}$/.test(old)) { const h = sha256(old); cache.delete(h); store.sessions.delete(h).catch(() => {}); }
