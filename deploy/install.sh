@@ -54,8 +54,16 @@ corepack enable >/dev/null 2>&1 || npm install -g pnpm@10 >/dev/null
 
 say "Code de l'application ($APP_DIR)"
 id -u "$SERVICE" >/dev/null 2>&1 || useradd --system --home "$APP_DIR" --shell /usr/sbin/nologin "$SERVICE"
-if [ -d "$APP_DIR/.git" ]; then git -C "$APP_DIR" fetch -q origin main && git -C "$APP_DIR" reset -q --hard origin/main
-else git clone -q --depth 1 "$REPO" "$APP_DIR"; fi
+# Le dossier appartient à l'utilisateur du service : git (root) doit le déclarer sûr, sinon il refuse
+# (« dubious ownership ») et l'ancienne version serait reconstruite sans le dire.
+GIT="git -c safe.directory=$APP_DIR -C $APP_DIR"
+if [ -d "$APP_DIR/.git" ]; then
+  $GIT fetch -q origin main || stop "Impossible de récupérer la dernière version depuis GitHub."
+  $GIT reset -q --hard origin/main || stop "Mise à jour du code impossible."
+else
+  git clone -q --depth 1 "$REPO" "$APP_DIR" || stop "Téléchargement du code impossible."
+fi
+echo "Version : $($GIT log -1 --format='%h %s' | cut -c1-90)"
 chown -R "$SERVICE:$SERVICE" "$APP_DIR"
 cd "$APP_DIR"
 sudo -u "$SERVICE" env HOME="$APP_DIR" COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install --frozen-lockfile --silent
