@@ -102,4 +102,4 @@ En local, avec Android Studio : `TAXIMANAGER_URL=https://… npx cap add android
 - Assistant : seules des statistiques agrégées sont envoyées. Les messages contenant un courriel, un téléphone ou un numéro de carte sont refusés.
 - Mode démo : données fictives gardées dans le navigateur, jamais envoyées à n8n ni à OpenRouter.
 - Une panne passagère de n8n ne ferme pas les sessions : seule l'absence réelle du compte ou un changement de mot de passe les invalide.
-- À faire côté n8n : un workflow planifié qui purge chaque nuit les sessions, liens et tentatives expirés (durée de conservation, Loi 25).
+- Conservation (Loi 25) : les workflows TM purgent chaque heure les sessions expirées, les liens expirés et les tentatives de connexion de plus de 15 minutes. Les 3 workflows TM ne conservent aucune donnée d'exécution dans n8n (réglages « Save execution data » à *none*).
