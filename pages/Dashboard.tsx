@@ -170,9 +170,11 @@ const Dashboard: React.FC<DashboardProps> = ({ services, navigateToChat, onNavig
                     </div>
                     <div className="text-right">
                         <p className="font-bold text-slate-900">{service.amount.toFixed(2)} $</p>
-                        <div className="flex items-center justify-end gap-1 text-[10px] text-green-500 font-bold bg-green-50 px-1.5 py-0.5 rounded mt-1">
-                            <span>PAYÉ</span>
-                        </div>
+                        {service.pending ? (
+                            <div className="flex items-center justify-end gap-1 text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded mt-1"><span>EN ATTENTE</span></div>
+                        ) : (
+                            <div className="flex items-center justify-end gap-1 text-[10px] text-green-500 font-bold bg-green-50 px-1.5 py-0.5 rounded mt-1"><span>PAYÉ</span></div>
+                        )}
                     </div>
                 </div>
             ))}

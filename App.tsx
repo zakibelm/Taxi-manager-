@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-import { backend, DEFAULT_SERVICE_TYPES } from './services/storage';
+import { ApiError, backend, DEFAULT_SERVICE_TYPES } from './services/storage';
 
 import { Service, ServiceTypeEntry, UserSession } from './types';
 
@@ -91,7 +91,11 @@ const App: React.FC = () => {
 
     try { const data = await backend.getServices(); setServices(data); setDataError(''); }
 
-    catch (error) { setServices([]); setDataError(error instanceof Error ? error.message : 'Chargement impossible.'); }
+    catch (error) {
+      // Session expirée (souvent une session reprise hors ligne) : retour à l'écran de connexion.
+      if (error instanceof ApiError && error.status === 401) { setSession(null); setServices([]); setDataError(''); return; }
+      setServices([]); setDataError(error instanceof Error ? error.message : 'Chargement impossible.');
+    }
 
   };
 

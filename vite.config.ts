@@ -14,6 +14,12 @@ export default defineConfig(({ mode }) => {
       },
       preview: { host: env.HOST || '127.0.0.1', port: 3012, strictPort: true },
       plugins: [apiPlugin(env), react()],
+      build: {
+        rollupOptions: {
+          // Bibliothèques séparées de l'application : fichiers plus petits, mieux mis en cache entre deux versions.
+          output: { manualChunks: { charts: ['recharts'], icons: ['lucide-react'] } },
+        },
+      },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
