@@ -109,7 +109,7 @@ class BackendService {
 
     this.demo = false; this.email = '';
     // Courses en attente et cache : liés à ce téléphone et à ce compte, jamais laissés à l'utilisateur suivant.
-    localStorage.removeItem(PENDING); localStorage.removeItem(CACHE); localStorage.removeItem('taximanager_last_user');
+    localStorage.removeItem(PENDING); localStorage.removeItem(CACHE); localStorage.removeItem('taximanager_last_user'); localStorage.removeItem('taximanager_types_cache');
 
     this.conversations = [];
 

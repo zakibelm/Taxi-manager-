@@ -4,7 +4,7 @@ import { backend } from '../services/storage';
 
 import { AIConversation, Service } from '../types';
 
-import { Send, Bot, User, Sparkles, MoreVertical, Plus } from 'lucide-react';
+import { Send, Bot, User, Sparkles } from 'lucide-react';
 
 
 
@@ -132,11 +132,6 @@ const Chat: React.FC<ChatProps> = ({ services }) => {
 
             </div>
 
-            <button className="p-2 hover:bg-slate-100 rounded-full text-slate-400">
-
-                <MoreVertical size={20} />
-
-            </button>
 
         </div>
 
@@ -307,11 +302,6 @@ const Chat: React.FC<ChatProps> = ({ services }) => {
 
                 <form onSubmit={handleSend} className="flex gap-2 items-center bg-slate-50 p-1.5 rounded-full border border-slate-100 focus-within:ring-2 focus-within:ring-red-100 transition-all">
 
-                    <button type="button" className="p-2 text-slate-400 hover:text-red-500 rounded-full transition-colors">
-
-                        <Plus size={20} />
-
-                    </button>
 
                     <input 
 
