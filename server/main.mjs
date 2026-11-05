@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createApiMiddlewares } from './plugin.mjs';
 import { n8nBase } from './providers/n8n.mjs';
+import { createAccessPolicy } from './access.mjs';
 
 const TYPES = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.mjs':'text/javascript; charset=utf-8',
  '.css':'text/css; charset=utf-8', '.json':'application/json; charset=utf-8', '.png':'image/png', '.svg':'image/svg+xml',
@@ -63,14 +64,37 @@ export function createHandler(env, { distDir, fetcher }) {
  return (req, res) => run(req, res, () => serveStatic(req, res, distRoot).catch(() => { if(!res.headersSent) res.statusCode = 500; res.end(); }));
 }
 
+/** Réglages manquants ou risqués, signalés au démarrage (journal systemd). */
+export function configWarnings(env) {
+ const list = [];
+ const production = env.NODE_ENV === 'production';
+ if(!n8nBase(env)) list.push('N8N_URL (HTTPS) et N8N_TOKEN manquants : connexion et courses renverront 503 (la démo reste disponible).');
+ if(production && !env.PUBLIC_URL) list.push('PUBLIC_URL manquante : inscription et mot de passe oublié renverront 503.');
+ if(production && env.PUBLIC_URL && !/^https:\/\//.test(env.PUBLIC_URL)) list.push('PUBLIC_URL doit commencer par https:// en production.');
+ if(!env.HMAC_SECRET) list.push('HMAC_SECRET absent : le jeton n8n sert de clé HMAC. Générez un secret dédié.');
+ if(!String(env.ADMIN_EMAILS || '').trim()) list.push('ADMIN_EMAILS vide : aucun administrateur.');
+ if(!env.OPENROUTER_API_KEY) list.push('OPENROUTER_API_KEY absente : l’assistant renverra 503.');
+ if(env.MAIL_PROVIDER === 'log' && production) list.push('MAIL_PROVIDER=log : les liens de connexion sont écrits dans le journal. À réserver à l’amorçage.');
+ if(production && !createAccessPolicy(env).restricted) list.push('ALLOWED_EMAILS vide : toute adresse confirmée peut s’inscrire et utiliser l’assistant.');
+ return list;
+}
+
 export function startServer(env = process.env) {
  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  const settings = { ...env, NODE_ENV: env.NODE_ENV || 'production' };
- if(!n8nBase(settings)) console.warn('N8N_URL (HTTPS) et N8N_TOKEN manquants : connexion et courses renverront 503 (la démo reste disponible).');
+ for(const warning of configWarnings(settings)) console.warn('[configuration] ' + warning);
  const server = createServer(createHandler(settings, { distDir: path.join(root, 'dist') }));
  server.requestTimeout = 30000; server.headersTimeout = 15000; server.keepAliveTimeout = 5000; server.maxRequestsPerSocket = 1000;
  const port = Number(settings.PORT || 3012), host = settings.HOST || '127.0.0.1';
  server.listen(port, host, () => console.log(`Taxi Manager (${settings.NODE_ENV}) : http://${host}:${port} — HTTPS requis devant ce serveur en production.`));
+ // Arrêt propre (systemctl restart, mise à jour) : les requêtes en cours se terminent, 10 s au plus.
+ const stop = signal => {
+  console.log(`${signal} reçu : arrêt du serveur.`);
+  server.close(() => process.exit(0));
+  server.closeIdleConnections?.();
+  setTimeout(() => process.exit(0), 10000).unref();
+ };
+ process.once('SIGTERM', stop); process.once('SIGINT', stop);
  return server;
 }
 

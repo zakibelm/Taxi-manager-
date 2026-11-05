@@ -56,6 +56,7 @@ Le script installe Node 22, nginx et certbot, l'application dans `/opt/taximanag
 | `HMAC_SECRET` | Clé des empreintes HMAC (IP, identifiants) dans n8n, générée par `install.sh`. À défaut, `N8N_TOKEN` est utilisé. |
 | `N8N_TOKEN_HEADER`, `N8N_PREFIX` | Facultatifs : `X-DrivePilot-Token` et `taximanager-tm` par défaut. |
 | `ADMIN_EMAILS` | Courriels administrateurs (séparés par des virgules) : l'admin voit les courses de tous les chauffeurs. |
+| `ALLOWED_EMAILS` | Chauffeurs autorisés : courriels ou domaines (`@flotte.ca`), séparés par des virgules. Vide : toute adresse confirmée peut s'inscrire (et utiliser l'assistant). Retirer une adresse refuse la connexion et ferme ses sessions. Les admins sont toujours autorisés. **Recommandé en production.** |
 | `PUBLIC_URL` | Adresse publique utilisée dans les liens des courriels. Obligatoire en production. |
 | `MAIL_PROVIDER` | `n8n` (défaut, SMTP du workflow Comptes TM) ou `log` (lien écrit dans le journal du serveur). |
 | `SERVICE_TYPES` | Facultatif : types de course proposés. Défaut : Régulier, TCT, Olymel, Bombardier, Handami, James Miron. |
@@ -66,6 +67,8 @@ Le script installe Node 22, nginx et certbot, l'application dans `/opt/taximanag
 1. **Créer un compte** : nom + courriel. Le compte est créé dans n8n, non confirmé, avec un mot de passe aléatoire inutilisable.
 2. Le lien reçu par courriel (24 h, usage unique) permet de **choisir son mot de passe** (12 caractères minimum) : seul le titulaire de la boîte peut le faire.
 3. **Mot de passe oublié** : lien valable 1 h. Changer de mot de passe ferme toutes les sessions et invalide les anciens liens.
+
+Si `ALLOWED_EMAILS` est renseignée, seules ces adresses (et les admins) peuvent s'inscrire et se connecter : une adresse non listée reçoit la même réponse publique, mais aucun compte n'est créé et aucun courriel n'est envoyé. Pour donner accès à un chauffeur, ajoute son courriel puis `systemctl restart taximanager` ; pour le retirer, enlève-le de la liste.
 
 Les réponses publiques sont identiques que le compte existe ou non. n8n limite l'envoi à un courriel toutes les 5 minutes par compte. Un courriel listé dans `ADMIN_EMAILS` devient administrateur. Pour le tout premier compte, `MAIL_PROVIDER=log` affiche le lien dans le journal du serveur.
 
@@ -84,6 +87,13 @@ Signature : si les secrets de dépôt `ANDROID_KEYSTORE_BASE64` (fichier .jks en
 
 En local, avec Android Studio : `TAXIMANAGER_URL=https://… npx cap add android`, puis `npm run android:sync` et `npm run android:open`.
 
+## Exploitation
+
+- **Supervision** : `GET /api/health` répond 200 (`{"status":"ok"}`) si le serveur tourne et que n8n est configuré, 503 sinon. Aucune session, aucun appel à n8n : à brancher sur Uptime Kuma ou équivalent.
+- **Réglages** : au démarrage, le serveur écrit dans le journal un avertissement `[configuration]` pour chaque réglage manquant ou risqué (PUBLIC_URL, HMAC_SECRET, ADMIN_EMAILS, clé OpenRouter, MAIL_PROVIDER=log, ALLOWED_EMAILS vide). `journalctl -u taximanager | grep configuration`.
+- **Arrêt propre** : sur `systemctl restart`, les requêtes en cours se terminent (10 s au plus).
+- **Tests** : `npm test` couvre le serveur (faux n8n) et la logique de l'application (file hors ligne, isolement des comptes). La CI lance tests, typage et build à chaque push et pull request.
+
 ## Sécurité
 
 - Cookie de session HttpOnly, SameSite=Strict, Secure en production. CSP stricte, HSTS, aucun CDN.
@@ -92,4 +102,4 @@ En local, avec Android Studio : `TAXIMANAGER_URL=https://… npx cap add android
 - Assistant : seules des statistiques agrégées sont envoyées. Les messages contenant un courriel, un téléphone ou un numéro de carte sont refusés.
 - Mode démo : données fictives gardées dans le navigateur, jamais envoyées à n8n ni à OpenRouter.
 - Une panne passagère de n8n ne ferme pas les sessions : seule l'absence réelle du compte ou un changement de mot de passe les invalide.
-- À faire côté n8n : un workflow planifié qui purge chaque nuit les sessions, liens et tentatives expirés (durée de conservation, Loi 25).
+- Conservation (Loi 25) : les workflows TM purgent chaque heure les sessions expirées, les liens expirés et les tentatives de connexion de plus de 15 minutes. Les 3 workflows TM ne conservent aucune donnée d'exécution dans n8n (réglages « Save execution data » à *none*).

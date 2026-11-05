@@ -1,4 +1,4 @@
-import { Service, ServiceTypeEntry, AIConversation, UserSession, UserSettings } from '../types';
+import type { Service, ServiceTypeEntry, AIConversation, UserSession, UserSettings } from '../types.ts';
 
 
 
@@ -24,6 +24,8 @@ type NewService = Pick<Service, 'type' | 'amount' | 'date' | 'description'>;
 type PendingService = NewService & { id: string; driver_email: string; created_at: string };
 /** Erreur réseau (pas de connexion, serveur injoignable) : distincte d'un refus du serveur. */
 class OfflineError extends Error {}
+/** Refus du serveur, avec son code HTTP (401 = session expirée). */
+export class ApiError extends Error { status: number; constructor(message: string, status: number) { super(message); this.status = status; } }
 const readJson = <T,>(key: string, fallback: T): T => { try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return v ?? fallback; } catch { return fallback; } };
 
 /** Export CSV (séparateur « ; », lisible par Excel en français ; montants en $ CA). */
@@ -39,6 +41,8 @@ class BackendService {
   constructor() { localStorage.removeItem('user_settings'); }
 
   private demo = false;
+  /** Courriel du compte connecté : la file hors ligne et le cache ne servent qu'à ce compte. */
+  private email = '';
 
   private conversations: AIConversation[] = [];
 
@@ -51,7 +55,7 @@ class BackendService {
     } catch { throw new OfflineError('Pas de connexion.'); }
     const data = await response.json().catch(() => ({}));
 
-    if (!response.ok) throw new Error(data.error || 'Service indisponible.');
+    if (!response.ok) throw new ApiError(data.error || 'Service indisponible.', response.status);
 
     return data;
 
@@ -60,6 +64,7 @@ class BackendService {
   async login(identifier: string, password: string): Promise<UserSession> {
 
     const session = await this.api('/api/auth/login', 'POST', { identifier, password });
+    this.email = session.user.email;
     localStorage.setItem('taximanager_last_user', JSON.stringify({ email: session.user.email, user: session.user }));
 
     this.demo = false;
@@ -86,11 +91,12 @@ class BackendService {
     catch {
       // Hors ligne : on garde la dernière identité connue pour permettre la saisie ; le serveur revérifie à l'envoi.
       const last = readJson<{ email?: string; user?: UserSession['user'] }>('taximanager_last_user', {});
-      if (last.user) return { user: last.user };
+      if (last.user) { this.email = last.user.email; return { user: last.user }; }
       throw new Error('Session indisponible.');
     }
     if (!response.ok) throw new Error('Session indisponible.');
     const data = await response.json();
+    this.email = data?.user?.email || '';
     if (data && data.user) localStorage.setItem('taximanager_last_user', JSON.stringify({ email: data.user.email, user: data.user }));
     else localStorage.removeItem('taximanager_last_user');
     return data && data.user ? data : null;
@@ -101,9 +107,9 @@ class BackendService {
 
     if (!this.demo) await this.api('/api/auth/logout', 'POST').catch(() => {});
 
-    this.demo = false;
+    this.demo = false; this.email = '';
     // Courses en attente et cache : liés à ce téléphone et à ce compte, jamais laissés à l'utilisateur suivant.
-    localStorage.removeItem(PENDING); localStorage.removeItem(CACHE); localStorage.removeItem('taximanager_last_user');
+    localStorage.removeItem(PENDING); localStorage.removeItem(CACHE); localStorage.removeItem('taximanager_last_user'); localStorage.removeItem('taximanager_types_cache');
 
     this.conversations = [];
 
@@ -137,8 +143,14 @@ class BackendService {
 
   }
 
-  private pending(): PendingService[] { const rows = readJson<PendingService[]>(PENDING, []); return Array.isArray(rows) ? rows : []; }
-  private savePending(rows: PendingService[]) { if (rows.length) localStorage.setItem(PENDING, JSON.stringify(rows)); else localStorage.removeItem(PENDING); }
+  private allPending(): PendingService[] { const rows = readJson<PendingService[]>(PENDING, []); return Array.isArray(rows) ? rows : []; }
+  /** File du compte connecté seulement : une course saisie par un autre chauffeur n'est jamais envoyée sous ce compte. */
+  private pending(): PendingService[] { return this.email ? this.allPending().filter(p => p.driver_email === this.email) : []; }
+  /** Remplace la file du compte connecté, sans toucher à celle des autres comptes de ce téléphone. */
+  private savePending(rows: PendingService[]) {
+    const all = [...this.allPending().filter(p => p.driver_email !== this.email), ...rows];
+    if (all.length) localStorage.setItem(PENDING, JSON.stringify(all)); else localStorage.removeItem(PENDING);
+  }
   private asService(p: PendingService): Service { return { ...p, updated_at: p.created_at, pending: true }; }
   /** Nombre de courses saisies hors ligne pas encore envoyées. */
   pendingCount(): number { return this.demo ? 0 : this.pending().length; }
@@ -153,7 +165,7 @@ class BackendService {
         this.savePending(this.pending().filter(x => x.id !== p.id)); sent++;
       } catch (error) {
         if (error instanceof OfflineError) break;            // toujours hors ligne : on réessaiera
-        if (/connexion requise/i.test(String((error as Error).message))) break; // session expirée : garder pour après reconnexion
+        if (error instanceof ApiError && error.status === 401) break; // session expirée : garder pour après reconnexion
         // Refus définitif (type archivé, montant invalide…) : la course reste en file, visible, à supprimer par le chauffeur.
       }
     }
@@ -168,10 +180,12 @@ class BackendService {
     let rows: Service[];
     try {
       rows = (await this.api('/api/services')).services;
-      localStorage.setItem(CACHE, JSON.stringify(rows));
+      localStorage.setItem(CACHE, JSON.stringify({ email: this.email, rows }));
     } catch (error) {
       if (!(error instanceof OfflineError)) throw error;
-      rows = readJson<Service[]>(CACHE, []);                  // hors ligne : dernière liste connue
+      // Hors ligne : dernière liste connue, seulement si elle appartient à ce compte.
+      const cached = readJson<{ email?: string; rows?: Service[] }>(CACHE, {});
+      rows = cached.email === this.email && Array.isArray(cached.rows) ? cached.rows : [];
     }
     const known = new Set(rows.map(r => r.id));
     return [...this.pending().filter(p => !known.has(p.id)).map(p => this.asService(p)), ...rows];
@@ -186,8 +200,8 @@ class BackendService {
       catch (error) {
         if (!(error instanceof OfflineError)) throw error;
         // Pas de réseau : la course est gardée sur le téléphone et envoyée au retour de la connexion.
-        const user = readJson<{ email?: string }>('taximanager_last_user', {});
-        const p: PendingService = { ...data, description: data.description ?? '', id, driver_email: user.email || '', created_at: new Date().toISOString() };
+        if (!this.email) throw new Error('Pas de connexion et aucun compte connu : reconnectez-vous pour enregistrer la course.');
+        const p: PendingService = { ...data, description: data.description ?? '', id, driver_email: this.email, created_at: new Date().toISOString() };
         this.savePending([...this.pending(), p]);
         return this.asService(p);
       }

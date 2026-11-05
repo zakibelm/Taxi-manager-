@@ -4,6 +4,7 @@ import { HttpError, jsonBody, reply, sameOrigin, validate } from './http.mjs';
 import { object, text, email as emailValue } from './validation.mjs';
 import { clientIP } from './limiter.mjs';
 import { adminEmails, newToken, normalizeEmail, randomHex, sha256 } from './store.mjs';
+import { createAccessPolicy } from './access.mjs';
 
 const derive = promisify(scrypt);
 const HOUR = 60 * 60 * 1000;
@@ -51,6 +52,7 @@ export const mails = {
 export function createRegistrationMiddleware({ store, auth, env = process.env, now = Date.now, logger = console }) {
  const quota = createQuota(now);
  const admins = adminEmails(env);
+ const access = createAccessPolicy(env);
  const publicUrl = req => {
   if(env.PUBLIC_URL) return env.PUBLIC_URL.replace(/\/$/, '');
   if(env.NODE_ENV === 'production') throw new HttpError(503, 'PUBLIC_URL non configurée.');
@@ -90,6 +92,8 @@ export function createRegistrationMiddleware({ store, auth, env = process.env, n
    const input = validate(() => { object(body, ['email', 'name']); return { email: emailValue(body.email), name: text(body.name, 60) }; });
    throttle(req, 'register', input.email);
    const base = publicUrl(req);
+   // Adresse hors de ALLOWED_EMAILS : même réponse publique, aucun compte créé, aucun courriel envoyé.
+   if(!access.allowed(input.email)) return [202, { message: GENERIC }];
    let acc = await store.accounts.get(input.email);
    if(acc && acc.verified) { await send(acc, mails.exists(acc.name, `${base}/?mode=forgot`)); return [202, { message: GENERIC }]; }
    if(!acc) {
@@ -112,7 +116,7 @@ export function createRegistrationMiddleware({ store, auth, env = process.env, n
    const address = validate(() => { object(body, ['email']); return emailValue(body.email); });
    throttle(req, 'forgot', address);
    const base = publicUrl(req);
-   const acc = await store.accounts.get(address);
+   const acc = access.allowed(address) ? await store.accounts.get(address) : null;
    if(acc && !acc.verified) await send(acc, mails.verify(acc.name, `${base}/?verify=${await issue(acc, 'verify', 24 * HOUR)}`));
    else if(acc) await send(acc, mails.reset(acc.name, `${base}/?reset=${await issue(acc, 'reset', HOUR)}`));
    return [202, { message: GENERIC }];
