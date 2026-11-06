@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { weekRange, summarize, previousRange, variation, monthGrid, inRange } from './stats.ts';
+import { monthRange, weekRange, summarize, previousRange, variation, monthGrid, inRange } from './stats.ts';
 
 const svc = (date, amount, type = 'A') => ({ id: date + amount, driver_email: 'a@b.c', type, amount, date: date + 'T12:00:00', created_at: '', updated_at: '' });
 
@@ -32,4 +32,9 @@ test('grille du mois : lundi en premier, cases vides hors mois', () => {
   const g = monthGrid(2026, 10); // novembre 2026 : le 1er est un dimanche
   assert.equal(g[0][6], '2026-11-01'); assert.equal(g[0][0], null);
   assert.ok(g.every(w => w.length === 7)); assert.equal(g.flat().filter(Boolean).length, 30);
+});
+
+test('monthRange : du 1er au dernier jour du mois (février bissextile inclus)', () => {
+  assert.deepEqual(monthRange(new Date(2026, 10, 6)), { start: '2026-11-01', end: '2026-11-30' });
+  assert.deepEqual(monthRange(new Date(2028, 1, 15)), { start: '2028-02-01', end: '2028-02-29' });
 });
