@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { LayoutDashboard, Car, MessageSquare, LogOut, User, Settings, X, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Car, MessageSquare, LogOut, User, Settings, X, CalendarDays, BarChart3 } from 'lucide-react';
 
 import { UserSession } from '../types';
 
@@ -31,6 +31,7 @@ export const Sidebar: React.FC<NavigationProps> = ({ currentPage, onNavigate, on
     { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
 
     { id: 'services', label: 'Services', icon: Car },
+    { id: 'analysis', label: 'Tableau de bord', icon: BarChart3 },
     { id: 'calendar', label: 'Calendrier', icon: CalendarDays },
 
     { id: 'chat', label: 'Assistant IA', icon: MessageSquare },
@@ -223,6 +224,7 @@ export const BottomNav: React.FC<NavigationProps> = ({ currentPage, onNavigate, 
         { id: 'dashboard', icon: LayoutDashboard },
 
         { id: 'services', icon: Car },
+        { id: 'analysis', icon: BarChart3 },
         { id: 'calendar', icon: CalendarDays },
 
         { id: 'chat', icon: MessageSquare },
@@ -236,7 +238,7 @@ export const BottomNav: React.FC<NavigationProps> = ({ currentPage, onNavigate, 
 
     return (
 
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-2 pb-6 z-50 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-3 py-2 pb-6 z-50 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
 
             {navItems.map((item) => (
 
@@ -244,11 +246,11 @@ export const BottomNav: React.FC<NavigationProps> = ({ currentPage, onNavigate, 
 
                     key={item.id}
 
-                    aria-label={({ dashboard: 'Accueil', services: 'Services', calendar: 'Calendrier', chat: 'Assistant', profile: 'Mon profil', settings: 'Paramètres' } as Record<string, string>)[item.id]}
+                    aria-label={({ dashboard: 'Accueil', services: 'Services', analysis: 'Tableau de bord', calendar: 'Calendrier', chat: 'Assistant', profile: 'Mon profil', settings: 'Paramètres' } as Record<string, string>)[item.id]}
 
                     onClick={() => onNavigate(item.id)}
 
-                    className={`flex flex-col items-center justify-center w-12 h-12 rounded-2xl transition-all duration-300 ${
+                    className={`flex flex-col items-center justify-center w-11 h-12 rounded-2xl transition-all duration-300 ${
 
                         currentPage === item.id 
 

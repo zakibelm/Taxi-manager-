@@ -16,6 +16,7 @@ import Chat from './pages/Chat';
 
 import Settings from './pages/Settings';
 import Calendar from './pages/Calendar';
+import Analysis from './pages/Analysis';
 import Profile from './pages/Profile';
 import { isProfileComplete, loadProfile } from './utils/profile';
 
@@ -250,6 +251,8 @@ const App: React.FC = () => {
                         />
 
                     )}
+
+                    {currentPage === 'analysis' && <Analysis services={services} />}
 
                     {currentPage === 'calendar' && (
                         <Calendar services={services} serviceTypes={serviceTypes} onServiceAdded={refreshServices} />
