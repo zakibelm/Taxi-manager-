@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Service, ServiceType, ServiceTypeEntry } from '../types';
 import { backend, servicesToCsv } from '../services/storage';
-import { Plus, Trash2, Search, Filter, X, Calendar, DollarSign, Type, Download, CloudOff } from 'lucide-react';
+import { Plus, Trash2, Search, Filter, X, Calendar, DollarSign, Type, Download, FileText, CloudOff } from 'lucide-react';
 import { formatDate } from '../utils/date';
+import { buildReportPdf } from '../utils/reportPdf';
 
 interface ServicesProps {
   services: Service[];
@@ -112,6 +113,16 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  /** Rapport PDF des courses affichées (filtres appliqués). */
+  const exportPdf = async () => {
+    const blob = await buildReportPdf(filteredServices, services[0]?.driver_email ?? '');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `rapport-taximanager-${new Date().toLocaleDateString('en-CA')}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-24 md:pb-0">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-2">
@@ -127,6 +138,14 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
         >
             <Download size={20} aria-hidden="true" />
             <span>Exporter (CSV)</span>
+        </button>
+        <button
+            onClick={exportPdf}
+            disabled={filteredServices.length === 0}
+            className="flex items-center gap-2 bg-white text-slate-900 font-medium px-4 py-3 rounded-2xl border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-50"
+        >
+            <FileText size={20} aria-hidden="true" />
+            <span>Rapport (PDF)</span>
         </button>
         <button 
             onClick={openModal}
