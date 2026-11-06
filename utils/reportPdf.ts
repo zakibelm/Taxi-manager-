@@ -1,7 +1,7 @@
 import type { Service } from '../types';
 
 /** Rapport PDF des courses affichées (filtres appliqués) : synthèse par type + détail. Généré dans le navigateur, rien n'est envoyé. */
-export async function buildReportPdf(rows: Service[], who: string): Promise<Blob> {
+export async function buildReportPdf(rows: Service[], who: string, period?: { start?: string; end?: string }): Promise<Blob> {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'mm', format: 'letter' });
   const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
@@ -12,7 +12,7 @@ export async function buildReportPdf(rows: Service[], who: string): Promise<Blob
   doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
   doc.text('Rapport des courses - Taxi Manager', left, y); y += 7;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-  const from = sorted[0]?.date.slice(0, 10) ?? '-', to = sorted[sorted.length - 1]?.date.slice(0, 10) ?? '-';
+  const from = period?.start || sorted[0]?.date.slice(0, 10) || '-', to = period?.end || sorted[sorted.length - 1]?.date.slice(0, 10) || '-';
   doc.text(`Periode : ${from} au ${to}   |   Genere le ${new Date().toLocaleDateString('en-CA')}   |   ${who}`, left, y); y += 9;
 
   const total = sorted.reduce((s, r) => s + r.amount, 0);

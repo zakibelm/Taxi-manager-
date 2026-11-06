@@ -4,6 +4,7 @@ import { backend, servicesToCsv } from '../services/storage';
 import { Plus, Trash2, Search, Filter, X, Calendar, DollarSign, Type, Download, FileText, CloudOff } from 'lucide-react';
 import { formatDate } from '../utils/date';
 import { buildReportPdf } from '../utils/reportPdf';
+import { dayKey } from '../utils/stats';
 
 interface ServicesProps {
   services: Service[];
@@ -57,6 +58,9 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
+  const [periodStart, setPeriodStart] = useState('');
+  const [periodEnd, setPeriodEnd] = useState('');
+  const periodInvalid = Boolean(periodStart && periodEnd && periodStart > periodEnd);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -99,7 +103,9 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
                           s.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           s.amount.toString().includes(searchTerm);
     const matchesFilter = filterType === 'All' || s.type === filterType;
-    return matchesSearch && matchesFilter;
+    const day = dayKey(s.date);
+    const matchesPeriod = periodInvalid || ((!periodStart || day >= periodStart) && (!periodEnd || day <= periodEnd));
+    return matchesSearch && matchesFilter && matchesPeriod;
   });
 
   const pendingCount = services.filter(s => s.pending).length;
@@ -115,7 +121,7 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
 
   /** Rapport PDF des courses affichées (filtres appliqués). */
   const exportPdf = async () => {
-    const blob = await buildReportPdf(filteredServices, services[0]?.driver_email ?? '');
+    const blob = await buildReportPdf(filteredServices, services[0]?.driver_email ?? '', periodInvalid ? undefined : { start: periodStart, end: periodEnd });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = `rapport-taximanager-${new Date().toLocaleDateString('en-CA')}.pdf`;
@@ -165,6 +171,18 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
       )}
 
       {error && !isModalOpen && <p role="alert" className="text-red-700">{error}</p>}
+      {/* Période : filtre la liste et alimente les exports CSV et PDF */}
+      <div className="flex flex-wrap items-end gap-3 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
+        <label className="text-xs text-slate-500">Début de la période
+          <input type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="block mt-1 border border-slate-200 rounded-xl px-3 py-2 text-slate-800" />
+        </label>
+        <label className="text-xs text-slate-500">Fin de la période
+          <input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="block mt-1 border border-slate-200 rounded-xl px-3 py-2 text-slate-800" />
+        </label>
+        {(periodStart || periodEnd) && <button type="button" onClick={() => { setPeriodStart(''); setPeriodEnd(''); }} className="text-xs font-bold text-red-600 hover:text-red-700 px-3 py-2">Toute la période</button>}
+        <p className="text-xs text-slate-500 basis-full">Les exports CSV et PDF reprennent la période, le type et la recherche affichés.</p>
+        {periodInvalid && <p role="alert" className="text-red-700 text-sm basis-full">La date de début doit précéder la date de fin (période ignorée).</p>}
+      </div>
       {/* Filters */}
       <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
         <div className="relative flex-1">
