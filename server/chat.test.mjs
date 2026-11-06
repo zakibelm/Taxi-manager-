@@ -61,3 +61,12 @@ test('repli : OmniRoute en panne, la clé OpenRouter existante prend le relais',
  assert.equal(await provider.complete('hi',[]),'secours');
  assert.equal(urls.length,2);assert.match(logs[0],/omniroute.*HTTP 500/);assert.ok(!logs.join('').includes('k'.repeat(1)+'ey'));
 });
+
+test('choix du modèle : liste, refus d\'un modèle hors liste, payant écarté',async()=>{
+ const env={OPENROUTER_API_KEY:'k',LLM_FREE_MODELS:'meta/llama:free, openai/gpt-4o ,google/gemma:free'};
+ const p=createOpenRouterProvider(env,async(u,o)=>({ok:true,json:async()=>({choices:[{message:{content:JSON.parse(o.body).model}}]})}));
+ assert.deepEqual(p.models().models,['openrouter/free','meta/llama:free','google/gemma:free']);
+ assert.equal(await p.complete('hi',[],'google/gemma:free'),'google/gemma:free');
+ await assert.rejects(p.complete('hi',[],'openai/gpt-4o'),e=>e.status===400);
+ assert.equal(await p.complete('hi',[]),'openrouter/free');
+});

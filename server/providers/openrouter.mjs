@@ -28,19 +28,30 @@ export function llmModel(env){
  return (m==='openrouter/free'||/:free$/.test(m))?m:null;
 }
 export function llmConfigured(env){return Boolean(env.LLM_BASE_URL||env.OPENROUTER_API_KEY);}
+/** Modèles gratuits proposés à l'utilisateur : LLM_FREE_MODELS (liste), sinon le modèle par défaut. Sur OpenRouter, tout modèle non gratuit est écarté. */
+export function llmModels(env){
+ const fallback=env.LLM_BASE_URL?(llmModel(env)||'taxi-free'):(llmModel(env)||'openrouter/free');
+ const listed=String(env.LLM_FREE_MODELS||'').split(',').map(m=>m.trim()).filter(m=>/^[\w.\-:\/]{1,80}$/.test(m));
+ const free=m=>env.LLM_BASE_URL||m==='openrouter/free'||/:free$/.test(m);
+ const list=[...new Set([fallback,...listed.filter(free)])].slice(0,20);
+ return {models:list,default:list[0]};
+}
 /** Routes essayées dans l'ordre : OmniRoute (LLM_BASE_URL) puis, si présente, la clé OpenRouter existante en repli. */
-export function llmRoutes(env){
+export function llmRoutes(env,choice){
  const routes=[];
- if(env.LLM_BASE_URL){const base=llmBase(env),model=llmModel(env);if(base&&model) routes.push({name:'omniroute',base,model,key:env.LLM_API_KEY});}
+ if(env.LLM_BASE_URL){const base=llmBase(env),model=llmModel(env);if(base&&model) routes.push({name:'omniroute',base,model:choice||model,key:env.LLM_API_KEY});}
  if(env.OPENROUTER_API_KEY){const model=String(env.OPENROUTER_MODEL||'openrouter/free').trim();
-  if(model==='openrouter/free'||/:free$/.test(model)) routes.push({name:'openrouter',base:OPENROUTER_URL,model,key:env.OPENROUTER_API_KEY});}
+  const pick=!env.LLM_BASE_URL&&choice?choice:model;
+  if(pick==='openrouter/free'||/:free$/.test(pick)) routes.push({name:'openrouter',base:OPENROUTER_URL,model:pick,key:env.OPENROUTER_API_KEY});}
  return routes;
 }
 /** Fournisseur compatible OpenAI : OmniRoute d'abord, OpenRouter (clé existante) en repli. */
 export function createLlmProvider(env = process.env, fetcher = fetch, log = console.warn) {
  return {
-  async complete(message, services) {
-   const routes=llmRoutes(env);
+  models(){return llmModels(env);},
+  async complete(message, services, choice) {
+   if(choice && !llmModels(env).models.includes(choice)) throw new HttpError(400,'Modèle non autorisé.');
+   const routes=llmRoutes(env,choice);
    if(!routes.length) throw new HttpError(503,'Assistant non configuré sur le serveur.');
    for(const route of routes){
     try {

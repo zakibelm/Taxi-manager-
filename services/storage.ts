@@ -288,9 +288,15 @@ class BackendService {
 
   }
 
-  async sendChatMessage(message: string, context?: unknown): Promise<AIConversation> {
+  /** Modèles gratuits proposés par le serveur (liste vide en démo ou hors ligne). */
+  async getChatModels(): Promise<{ models: string[]; default: string | null }> {
+    if (this.demo) return { models: [], default: null };
+    try { return await this.api('/api/chat/models'); } catch { return { models: [], default: null }; }
+  }
 
-    const response = this.demo ? '(Démo) Réponse simulée : aucune requête envoyée à un fournisseur externe.' : (await this.api('/api/chat', 'POST', { message, includeServices: this.getSettings().enableRAG })).response;
+  async sendChatMessage(message: string, context?: unknown, model?: string): Promise<AIConversation> {
+
+    const response = this.demo ? '(Démo) Réponse simulée : aucune requête envoyée à un fournisseur externe.' : (await this.api('/api/chat', 'POST', { message, includeServices: this.getSettings().enableRAG, ...(model ? { model } : {}) })).response;
 
     const conversation: AIConversation = { id: crypto.randomUUID(), driver_email: 'demo@example.test', user_message: message,
 

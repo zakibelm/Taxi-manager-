@@ -27,6 +27,9 @@ const Chat: React.FC<ChatProps> = ({ services }) => {
   const [error, setError] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [models, setModels] = useState<string[]>([]);
+  const [model, setModel] = useState('');
+
 
 
 
@@ -35,6 +38,12 @@ const Chat: React.FC<ChatProps> = ({ services }) => {
     // Load history
 
     setMessages(backend.getConversations());
+    backend.getChatModels().then(({ models: list, default: def }) => {
+      setModels(list);
+      let saved = '';
+      try { saved = localStorage.getItem('taximanager_model') || ''; } catch { /* stockage indisponible */ }
+      setModel(list.includes(saved) ? saved : (def || ''));
+    });
 
   }, []);
 
@@ -90,7 +99,7 @@ const Chat: React.FC<ChatProps> = ({ services }) => {
 
         const context = { totalRevenue, count: services.length };
 
-        const response = await backend.sendChatMessage(userMsg.user_message, context);
+        const response = await backend.sendChatMessage(userMsg.user_message, context, model || undefined);
 
         setMessages(prev => prev.map(m => m.id === tempId ? response : m));
 
@@ -298,6 +307,18 @@ const Chat: React.FC<ChatProps> = ({ services }) => {
             {/* Input Area */}
 
             <div className="p-4 bg-white border-t border-slate-50">
+                {models.length > 1 && (
+                  <label className="flex items-center gap-2 text-xs text-slate-500 mb-2 px-2">
+                    Modèle gratuit
+                    <select
+                      value={model}
+                      onChange={e => { setModel(e.target.value); try { localStorage.setItem('taximanager_model', e.target.value); } catch { /* stockage indisponible */ } }}
+                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-700"
+                    >
+                      {models.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </label>
+                )}
                 <p className="text-xs text-slate-500 mb-2 px-2">Vos messages sont traités par un fournisseur d’IA externe. N’y inscrivez ni courriel, ni téléphone, ni numéro de carte.</p>
 
                 <form onSubmit={handleSend} className="flex gap-2 items-center bg-slate-50 p-1.5 rounded-full border border-slate-100 focus-within:ring-2 focus-within:ring-red-100 transition-all">
