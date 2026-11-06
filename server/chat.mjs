@@ -5,18 +5,22 @@ export function createChatMiddleware({getUser,provider,services,now=Date.now}) {
  const quotas=new Map();
  return async(req,res,next)=>{
   const url=new URL(req.url,'http://local');
-  if(url.pathname!=='/api/chat') return next();
+  if(url.pathname!=='/api/chat' && url.pathname!=='/api/chat/models') return next();
   try {
    const user=await getUser(req);
    if(!user || !['admin','chauffeur'].includes(user.role)) throw new HttpError(401,'Connexion requise.');
+   if(url.pathname==='/api/chat/models'){
+    if(req.method!=='GET') throw new HttpError(405,'Méthode non autorisée.');
+    return reply(res,200,provider.models?provider.models():{models:[],default:null});
+   }
    if(req.method!=='POST') throw new HttpError(405,'Méthode non autorisée.');
    if(url.search) throw new HttpError(400,'Paramètres non autorisés.');
    sameOrigin(req);
    const body=await jsonBody(req,8192);
    const input=validate(()=>{
-    object(body,['message','includeServices']);
+    object(body,['message','includeServices','model']);
     if(typeof body.includeServices!=='boolean') throw new Error('boolean');
-    return {message:text(body.message,2000),includeServices:body.includeServices};
+    return {message:text(body.message,2000),includeServices:body.includeServices,model:body.model===undefined?undefined:text(body.model,80)};
    });
    if(hasPersonalData(input.message)) throw new HttpError(400,PERSONAL_DATA_MESSAGE);
    for(const [key,value] of quotas) if(value.reset<=now()) quotas.delete(key);
@@ -26,7 +30,7 @@ export function createChatMiddleware({getUser,provider,services,now=Date.now}) {
    quota.count++;quotas.set(user.id,quota);
    const rows=input.includeServices ? await services.list(user) : [];
    const visible=rows.filter(s=>user.role==='admin'||s.driver_email===user.email);
-   return reply(res,200,{response:await provider.complete(input.message,visible)});
+   return reply(res,200,{response:await provider.complete(input.message,visible,input.model)});
   } catch(error) { reply(res,error.status || 500,{error:error.status ? error.message : 'Erreur interne.'}); }
  };
 }
