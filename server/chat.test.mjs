@@ -37,3 +37,20 @@ test('chat authenticates, bounds messages, filters rows and enforces per-user qu
   assert.deepEqual(seen,[]);
  } finally { await new Promise(r=>server.close(r)); }
 });
+
+test('OmniRoute : URL, modèle gratuit et clé optionnelle',async()=>{
+ const {llmBase,llmModel}=await import('./providers/openrouter.mjs');
+ assert.equal(llmBase({LLM_BASE_URL:'http://100.64.1.2:20128/v1/'}),'http://100.64.1.2:20128/v1');
+ assert.equal(llmBase({LLM_BASE_URL:'http://example.com/v1'}),null);
+ assert.equal(llmBase({LLM_BASE_URL:'https://omni.example.com/v1'}),'https://omni.example.com/v1');
+ assert.equal(llmModel({LLM_BASE_URL:'https://o.example.com/v1'}),'taxi-free');
+ assert.equal(llmModel({OPENROUTER_MODEL:'anthropic/claude-sonnet-4'}),null);
+ assert.equal(llmModel({OPENROUTER_MODEL:'meta/llama:free'}),'meta/llama:free');
+ let call;
+ const provider=createOpenRouterProvider({LLM_BASE_URL:'http://100.64.1.2:20128/v1'},async(url,o)=>{call={url,o};return {ok:true,json:async()=>({choices:[{message:{content:'ok'}}]})};});
+ assert.equal(await provider.complete('hi',[]),'ok');
+ assert.equal(call.url,'http://100.64.1.2:20128/v1/chat/completions');
+ assert.equal(JSON.parse(call.o.body).model,'taxi-free');
+ assert.equal(call.o.headers.Authorization,undefined);
+ await assert.rejects(createOpenRouterProvider({OPENROUTER_API_KEY:'k',OPENROUTER_MODEL:'openai/gpt-4o'}).complete('hi',[]),e=>e.status===503);
+});

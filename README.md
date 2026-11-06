@@ -60,7 +60,8 @@ Le script installe Node 22, nginx et certbot, l'application dans `/opt/taximanag
 | `PUBLIC_URL` | Adresse publique utilisée dans les liens des courriels. Obligatoire en production. |
 | `MAIL_PROVIDER` | `n8n` (défaut, SMTP du workflow Comptes TM) ou `log` (lien écrit dans le journal du serveur). |
 | `SERVICE_TYPES` | Facultatif : types de course proposés. Défaut : Régulier, TCT, Olymel, Bombardier, Handami, James Miron. |
-| `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | Assistant ; modèle `openrouter/free` par défaut. |
+| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | Assistant via OmniRoute (API compatible OpenAI). `LLM_MODEL` = combo OmniRoute 100 % gratuit (`taxi-free` par défaut). HTTP accepté uniquement en réseau privé (Tailscale, Docker). |
+| `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | Repli direct sans OmniRoute ; modèles gratuits uniquement (`openrouter/free` ou `:free`). |
 
 ## Comptes
 
