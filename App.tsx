@@ -15,6 +15,9 @@ import Services from './pages/Services';
 import Chat from './pages/Chat';
 
 import Settings from './pages/Settings';
+import Calendar from './pages/Calendar';
+import Profile from './pages/Profile';
+import { isProfileComplete, loadProfile } from './utils/profile';
 
 import { Menu } from 'lucide-react';
 
@@ -35,6 +38,16 @@ const App: React.FC = () => {
 
   const [checkingSession, setCheckingSession] = useState(true);
   const [openAddForm, setOpenAddForm] = useState(false);
+  const [welcomeProfile, setWelcomeProfile] = useState(false);
+
+  /** Ouvre le formulaire de profil une fois par session de navigation tant qu'il est incomplet. */
+  const promptProfile = (email: string) => {
+    let done = false;
+    try { done = sessionStorage.getItem('taximanager_profile_prompted') === email; } catch { /* stockage indisponible */ }
+    if (done || isProfileComplete(loadProfile(email))) return;
+    try { sessionStorage.setItem('taximanager_profile_prompted', email); } catch { /* stockage indisponible */ }
+    setWelcomeProfile(true); setCurrentPage('profile');
+  };
 
   const navigate = (page: string, options?: { openForm?: boolean }) => {
     setCurrentPage(page);
@@ -47,7 +60,7 @@ const App: React.FC = () => {
 
     let active = true;
 
-    backend.getSession().then(value => { if (active) setSession(value); })
+    backend.getSession().then(value => { if (active) { setSession(value); if (value) promptProfile(value.user.email); } })
 
       .catch(() => { if (active) setSession(null); })
 
@@ -102,6 +115,8 @@ const App: React.FC = () => {
 
 
   const handleLogin = (newSession: UserSession) => {
+    // Profil incomplet : le formulaire s'ouvre juste après la connexion.
+    promptProfile(newSession.user.email);
 
     setServices([]);
 
@@ -234,6 +249,16 @@ const App: React.FC = () => {
                             serviceTypes={serviceTypes}
                         />
 
+                    )}
+
+                    {currentPage === 'calendar' && (
+                        <Calendar services={services} serviceTypes={serviceTypes} onServiceAdded={refreshServices} />
+                    )}
+
+                    {currentPage === 'profile' && (
+                        <Profile user={session.user} welcome={welcomeProfile}
+                          onSaved={() => { if (welcomeProfile) { setWelcomeProfile(false); setCurrentPage('dashboard'); } }}
+                          onSkip={() => { setWelcomeProfile(false); setCurrentPage('dashboard'); }} />
                     )}
 
                     {currentPage === 'chat' && (

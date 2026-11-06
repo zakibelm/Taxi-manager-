@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Service } from '../types';
-import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
+import PeriodAnalysis from '../components/PeriodAnalysis';
 import { Car, Clock, Plus, List } from 'lucide-react';
 import { formatDate } from '../utils/date';
 
@@ -23,16 +23,10 @@ const Dashboard: React.FC<DashboardProps> = ({ services, navigateToChat, onNavig
     const todaysRides = todaysServices.length;
     const todaysHours = '—'; // Hours are not collected by this application.
     const sortedServices = [...services].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    const timelineData = Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(); date.setDate(date.getDate() - (6 - index));
-      const key = date.toLocaleDateString('fr-CA');
-      return { day: date.toLocaleDateString('fr-CA', { weekday: 'short' }),
-        amount: services.filter(s => new Date(s.date).toLocaleDateString('fr-CA') === key).reduce((sum, s) => sum + s.amount, 0) };
-    });
 
     const recentActivity = sortedServices.reverse().slice(0, 3);
 
-    return { totalRevenue, todaysRevenue, todaysRides, todaysHours, timelineData, recentActivity };
+    return { totalRevenue, todaysRevenue, todaysRides, todaysHours, recentActivity };
   }, [services]);
 
   return (
@@ -115,33 +109,9 @@ const Dashboard: React.FC<DashboardProps> = ({ services, navigateToChat, onNavig
         </button>
       </div>
 
-      {/* Mini Chart Section */}
-      <div className="bg-white rounded-[28px] p-6 shadow-sm border border-slate-100">
-          <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-slate-900">Tendance Semaine</h3>
-              
-          </div>
-          <div className="h-24 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={stats.timelineData}>
-                    <defs>
-                        <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#dc2626" stopOpacity={0.1}/>
-                            <stop offset="95%" stopColor="#dc2626" stopOpacity={0}/>
-                        </linearGradient>
-                    </defs>
-                    <Tooltip contentStyle={{ display: 'none' }} />
-                    <Area type="monotone" dataKey="amount" stroke="#dc2626" strokeWidth={3} fillOpacity={1} fill="url(#colorAmount)" />
-                </AreaChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex justify-between px-2 mt-2">
-            {stats.timelineData.map((d, i) => (
-                <span key={i} className="text-[10px] font-medium text-slate-400 uppercase">{d.day.charAt(0)}</span>
-            ))}
-          </div>
-      </div>
-
+      {/* Analyse de l'historique (semaine courante par défaut) */}
+      <PeriodAnalysis services={services} />
+
       {/* Recent Activity List */}
       <div>
         <div className="flex justify-between items-end mb-4 px-2">

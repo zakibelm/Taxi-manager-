@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { LayoutDashboard, Car, MessageSquare, LogOut, User, Settings, X } from 'lucide-react';
+import { LayoutDashboard, Car, MessageSquare, LogOut, User, Settings, X, CalendarDays } from 'lucide-react';
 
 import { UserSession } from '../types';
 
@@ -31,8 +31,10 @@ export const Sidebar: React.FC<NavigationProps> = ({ currentPage, onNavigate, on
     { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
 
     { id: 'services', label: 'Services', icon: Car },
+    { id: 'calendar', label: 'Calendrier', icon: CalendarDays },
 
     { id: 'chat', label: 'Assistant IA', icon: MessageSquare },
+    { id: 'profile', label: 'Mon profil', icon: User },
 
     { id: 'settings', label: 'Paramètres', icon: Settings },
 
@@ -221,8 +223,10 @@ export const BottomNav: React.FC<NavigationProps> = ({ currentPage, onNavigate, 
         { id: 'dashboard', icon: LayoutDashboard },
 
         { id: 'services', icon: Car },
+        { id: 'calendar', icon: CalendarDays },
 
         { id: 'chat', icon: MessageSquare },
+        { id: 'profile', icon: User },
 
         { id: 'settings', icon: Settings },
 
@@ -240,7 +244,7 @@ export const BottomNav: React.FC<NavigationProps> = ({ currentPage, onNavigate, 
 
                     key={item.id}
 
-                    aria-label={item.id === 'dashboard' ? 'Accueil' : item.id === 'services' ? 'Services' : item.id === 'chat' ? 'Assistant' : 'Paramètres'}
+                    aria-label={({ dashboard: 'Accueil', services: 'Services', calendar: 'Calendrier', chat: 'Assistant', profile: 'Mon profil', settings: 'Paramètres' } as Record<string, string>)[item.id]}
 
                     onClick={() => onNavigate(item.id)}
 
