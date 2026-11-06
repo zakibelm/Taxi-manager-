@@ -7,11 +7,12 @@ import { monthRange, previousRange, summarize, variation, weekRange } from '../u
 const money = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 
 /** Analyse de l'historique : semaine courante par défaut, début et fin modifiables. */
-const PeriodAnalysis: React.FC<{ services: Service[] }> = ({ services }) => {
+const PeriodAnalysis: React.FC<{ services: Service[]; initial?: 'week' | 'month' }> = ({ services, initial = 'week' }) => {
   const week = useMemo(() => weekRange(), []);
   const month = useMemo(() => monthRange(), []);
-  const [start, setStart] = useState(week.start);
-  const [end, setEnd] = useState(week.end);
+  const first = initial === 'month' ? month : week;
+  const [start, setStart] = useState(first.start);
+  const [end, setEnd] = useState(first.end);
   const invalid = !start || !end || start > end;
   const isWeek = start === week.start && end === week.end;
   const isMonth = start === month.start && end === month.end;
