@@ -15,6 +15,12 @@ export function weekRange(today: Date = new Date()): { start: string; end: strin
   return { start, end: addDays(start, 6) };
 }
 
+/** Mois courant, du 1er au dernier jour. */
+export function monthRange(today: Date = new Date()): { start: string; end: string } {
+  const y = today.getFullYear(), m = today.getMonth();
+  return { start: dayKey(new Date(y, m, 1, 12)), end: dayKey(new Date(y, m + 1, 0, 12)) };
+}
+
 export const inRange = (rows: Service[], start: string, end: string): Service[] =>
   rows.filter(s => { const k = dayKey(s.date); return k >= start && k <= end; });
 

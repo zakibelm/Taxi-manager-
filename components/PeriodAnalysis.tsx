@@ -2,17 +2,19 @@ import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { TrendingUp, TrendingDown, RotateCcw } from 'lucide-react';
 import { Service } from '../types';
-import { previousRange, summarize, variation, weekRange } from '../utils/stats';
+import { monthRange, previousRange, summarize, variation, weekRange } from '../utils/stats';
 
 const money = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 
 /** Analyse de l'historique : semaine courante par défaut, début et fin modifiables. */
 const PeriodAnalysis: React.FC<{ services: Service[] }> = ({ services }) => {
   const week = useMemo(() => weekRange(), []);
+  const month = useMemo(() => monthRange(), []);
   const [start, setStart] = useState(week.start);
   const [end, setEnd] = useState(week.end);
   const invalid = !start || !end || start > end;
   const isWeek = start === week.start && end === week.end;
+  const isMonth = start === month.start && end === month.end;
 
   const data = useMemo(() => {
     if (invalid) return null;
@@ -27,7 +29,7 @@ const PeriodAnalysis: React.FC<{ services: Service[] }> = ({ services }) => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h3 id="analysis-title" className="font-bold text-slate-900">Analyse de l’historique</h3>
-          <p className="text-xs text-slate-500">{isWeek ? 'Semaine courante (lundi au dimanche)' : 'Période personnalisée'}</p>
+          <p className="text-xs text-slate-500">{isWeek ? 'Semaine courante (lundi au dimanche)' : isMonth ? 'Mois en cours' : 'Période personnalisée'}</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-xs text-slate-500">Début
@@ -36,12 +38,16 @@ const PeriodAnalysis: React.FC<{ services: Service[] }> = ({ services }) => {
           <label className="text-xs text-slate-500">Fin
             <input type="date" value={end} onChange={e => setEnd(e.target.value)} className="block mt-1 border border-slate-200 rounded-xl px-3 py-2 text-slate-800" />
           </label>
-          {!isWeek && (
-            <button type="button" onClick={() => { setStart(week.start); setEnd(week.end); }}
-              className="flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-700 px-3 py-2">
-              <RotateCcw size={14} aria-hidden="true" /> Semaine courante
+          <div className="flex gap-2" role="group" aria-label="Périodes rapides">
+            <button type="button" aria-pressed={isWeek} onClick={() => { setStart(week.start); setEnd(week.end); }}
+              className={`flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-xl ${isWeek ? 'bg-red-600 text-white' : 'text-red-600 hover:text-red-700'}`}>
+              {!isWeek && <RotateCcw size={14} aria-hidden="true" />} Semaine courante
             </button>
-          )}
+            <button type="button" aria-pressed={isMonth} onClick={() => { setStart(month.start); setEnd(month.end); }}
+              className={`text-xs font-bold px-3 py-2 rounded-xl ${isMonth ? 'bg-red-600 text-white' : 'text-red-600 hover:text-red-700'}`}>
+              Mois en cours
+            </button>
+          </div>
         </div>
       </div>
 
