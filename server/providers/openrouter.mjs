@@ -28,26 +28,36 @@ export function llmModel(env){
  return (m==='openrouter/free'||/:free$/.test(m))?m:null;
 }
 export function llmConfigured(env){return Boolean(env.LLM_BASE_URL||env.OPENROUTER_API_KEY);}
-/** Fournisseur compatible OpenAI : OmniRoute (LLM_BASE_URL) ou OpenRouter par défaut. */
-export function createLlmProvider(env = process.env, fetcher = fetch) {
+/** Routes essayées dans l'ordre : OmniRoute (LLM_BASE_URL) puis, si présente, la clé OpenRouter existante en repli. */
+export function llmRoutes(env){
+ const routes=[];
+ if(env.LLM_BASE_URL){const base=llmBase(env),model=llmModel(env);if(base&&model) routes.push({name:'omniroute',base,model,key:env.LLM_API_KEY});}
+ if(env.OPENROUTER_API_KEY){const model=String(env.OPENROUTER_MODEL||'openrouter/free').trim();
+  if(model==='openrouter/free'||/:free$/.test(model)) routes.push({name:'openrouter',base:OPENROUTER_URL,model,key:env.OPENROUTER_API_KEY});}
+ return routes;
+}
+/** Fournisseur compatible OpenAI : OmniRoute d'abord, OpenRouter (clé existante) en repli. */
+export function createLlmProvider(env = process.env, fetcher = fetch, log = console.warn) {
  return {
   async complete(message, services) {
-   const base=llmBase(env),model=llmModel(env);
-   if(!llmConfigured(env) || !base || !model) throw new HttpError(503,'Assistant non configuré sur le serveur.');
-   const key=env.LLM_API_KEY||env.OPENROUTER_API_KEY;
-   try {
-    const headers={'Content-Type':'application/json','X-Title':'Taxi Manager'};
-    if(key) headers.Authorization=`Bearer ${key}`;
-    const response=await fetcher(base+'/chat/completions',{
-     method:'POST',headers,
-     body:JSON.stringify({model,messages:chatMessages(message,services),max_tokens:800}),
-     signal:AbortSignal.timeout(30000),redirect:'error'
-    });
-    if(!response.ok) throw new Error('provider');
-    const data=await response.json();const text=data.choices?.[0]?.message?.content;
-    if(typeof text!=='string' || !text.trim()) throw new Error('empty');
-    return text.slice(0,12000);
-   } catch { throw new HttpError(502,'Assistant momentanément indisponible. Réessayez.'); }
+   const routes=llmRoutes(env);
+   if(!routes.length) throw new HttpError(503,'Assistant non configuré sur le serveur.');
+   for(const route of routes){
+    try {
+     const headers={'Content-Type':'application/json','X-Title':'Taxi Manager'};
+     if(route.key) headers.Authorization=`Bearer ${route.key}`;
+     const response=await fetcher(route.base+'/chat/completions',{
+      method:'POST',headers,
+      body:JSON.stringify({model:route.model,messages:chatMessages(message,services),max_tokens:800}),
+      signal:AbortSignal.timeout(30000),redirect:'error'
+     });
+     if(!response.ok) throw new Error('HTTP '+response.status);
+     const data=await response.json();const text=data.choices?.[0]?.message?.content;
+     if(typeof text!=='string' || !text.trim()) throw new Error('réponse vide');
+     return text.slice(0,12000);
+    } catch(e) { log(`[assistant] ${route.name} (${route.model}) a échoué : ${e.message}`); }
+   }
+   throw new HttpError(502,'Assistant momentanément indisponible. Réessayez.');
   }
  };
 }

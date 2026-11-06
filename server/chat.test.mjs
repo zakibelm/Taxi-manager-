@@ -54,3 +54,10 @@ test('OmniRoute : URL, modèle gratuit et clé optionnelle',async()=>{
  assert.equal(call.o.headers.Authorization,undefined);
  await assert.rejects(createOpenRouterProvider({OPENROUTER_API_KEY:'k',OPENROUTER_MODEL:'openai/gpt-4o'}).complete('hi',[]),e=>e.status===503);
 });
+
+test('repli : OmniRoute en panne, la clé OpenRouter existante prend le relais',async()=>{
+ const urls=[],logs=[];
+ const provider=createOpenRouterProvider({LLM_BASE_URL:'http://100.64.1.2:20128/v1',OPENROUTER_API_KEY:'k'},async(url)=>{urls.push(url);return url.includes('100.64')?{ok:false,status:500}:{ok:true,json:async()=>({choices:[{message:{content:'secours'}}]})};},m=>logs.push(m));
+ assert.equal(await provider.complete('hi',[]),'secours');
+ assert.equal(urls.length,2);assert.match(logs[0],/omniroute.*HTTP 500/);assert.ok(!logs.join('').includes('k'.repeat(1)+'ey'));
+});
