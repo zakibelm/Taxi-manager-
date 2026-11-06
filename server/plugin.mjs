@@ -1,5 +1,5 @@
 import { createChatMiddleware } from './chat.mjs';
-import { createOpenRouterProvider } from './providers/openrouter.mjs';
+import { createLlmProvider } from './providers/openrouter.mjs';
 import { privateFiles } from './files.mjs';
 import { securityHeaders } from './security.mjs';
 import { createAuthMiddleware } from './auth.mjs';
@@ -27,7 +27,7 @@ export function createApiMiddlewares(env, { fetcher = fetch } = {}) {
   securityHeaders(env), privateFiles, health, registration, auth,
   createServicesMiddleware({ getUser: auth.getUser, provider: services, env }),
   createServiceTypesMiddleware({ getUser: auth.getUser, env }),
-  createChatMiddleware({ getUser: auth.getUser, provider: createOpenRouterProvider(env), services })
+  createChatMiddleware({ getUser: auth.getUser, provider: createLlmProvider(env), services })
  ];
 }
 export function apiPlugin(env) {

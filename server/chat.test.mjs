@@ -37,3 +37,36 @@ test('chat authenticates, bounds messages, filters rows and enforces per-user qu
   assert.deepEqual(seen,[]);
  } finally { await new Promise(r=>server.close(r)); }
 });
+
+test('OmniRoute : URL, modèle gratuit et clé optionnelle',async()=>{
+ const {llmBase,llmModel}=await import('./providers/openrouter.mjs');
+ assert.equal(llmBase({LLM_BASE_URL:'http://100.64.1.2:20128/v1/'}),'http://100.64.1.2:20128/v1');
+ assert.equal(llmBase({LLM_BASE_URL:'http://example.com/v1'}),null);
+ assert.equal(llmBase({LLM_BASE_URL:'https://omni.example.com/v1'}),'https://omni.example.com/v1');
+ assert.equal(llmModel({LLM_BASE_URL:'https://o.example.com/v1'}),'taxi-free');
+ assert.equal(llmModel({OPENROUTER_MODEL:'anthropic/claude-sonnet-4'}),null);
+ assert.equal(llmModel({OPENROUTER_MODEL:'meta/llama:free'}),'meta/llama:free');
+ let call;
+ const provider=createOpenRouterProvider({LLM_BASE_URL:'http://100.64.1.2:20128/v1'},async(url,o)=>{call={url,o};return {ok:true,json:async()=>({choices:[{message:{content:'ok'}}]})};});
+ assert.equal(await provider.complete('hi',[]),'ok');
+ assert.equal(call.url,'http://100.64.1.2:20128/v1/chat/completions');
+ assert.equal(JSON.parse(call.o.body).model,'taxi-free');
+ assert.equal(call.o.headers.Authorization,undefined);
+ await assert.rejects(createOpenRouterProvider({OPENROUTER_API_KEY:'k',OPENROUTER_MODEL:'openai/gpt-4o'}).complete('hi',[]),e=>e.status===503);
+});
+
+test('repli : OmniRoute en panne, la clé OpenRouter existante prend le relais',async()=>{
+ const urls=[],logs=[];
+ const provider=createOpenRouterProvider({LLM_BASE_URL:'http://100.64.1.2:20128/v1',OPENROUTER_API_KEY:'k'},async(url)=>{urls.push(url);return url.includes('100.64')?{ok:false,status:500}:{ok:true,json:async()=>({choices:[{message:{content:'secours'}}]})};},m=>logs.push(m));
+ assert.equal(await provider.complete('hi',[]),'secours');
+ assert.equal(urls.length,2);assert.match(logs[0],/omniroute.*HTTP 500/);assert.ok(!logs.join('').includes('k'.repeat(1)+'ey'));
+});
+
+test('choix du modèle : liste, refus d\'un modèle hors liste, payant écarté',async()=>{
+ const env={OPENROUTER_API_KEY:'k',LLM_FREE_MODELS:'meta/llama:free, openai/gpt-4o ,google/gemma:free'};
+ const p=createOpenRouterProvider(env,async(u,o)=>({ok:true,json:async()=>({choices:[{message:{content:JSON.parse(o.body).model}}]})}));
+ assert.deepEqual(p.models().models,['openrouter/free','meta/llama:free','google/gemma:free']);
+ assert.equal(await p.complete('hi',[],'google/gemma:free'),'google/gemma:free');
+ await assert.rejects(p.complete('hi',[],'openai/gpt-4o'),e=>e.status===400);
+ assert.equal(await p.complete('hi',[]),'openrouter/free');
+});

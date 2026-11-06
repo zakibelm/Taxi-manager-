@@ -1,4 +1,5 @@
 // Standalone production server: API middlewares + static dist/ (no Vite). Run: npm run build && npm start
+import { llmBase, llmConfigured, llmModel } from './providers/openrouter.mjs';
 import { createServer } from 'node:http';
 import { createReadStream } from 'node:fs';
 import { stat, realpath } from 'node:fs/promises';
@@ -73,7 +74,9 @@ export function configWarnings(env) {
  if(production && env.PUBLIC_URL && !/^https:\/\//.test(env.PUBLIC_URL)) list.push('PUBLIC_URL doit commencer par https:// en production.');
  if(!env.HMAC_SECRET) list.push('HMAC_SECRET absent : le jeton n8n sert de clé HMAC. Générez un secret dédié.');
  if(!String(env.ADMIN_EMAILS || '').trim()) list.push('ADMIN_EMAILS vide : aucun administrateur.');
- if(!env.OPENROUTER_API_KEY) list.push('OPENROUTER_API_KEY absente : l’assistant renverra 503.');
+ if(!llmConfigured(env)) list.push('LLM_BASE_URL (OmniRoute) ou OPENROUTER_API_KEY absent : l’assistant renverra 503.');
+ else if(!llmBase(env)) list.push('LLM_BASE_URL invalide : HTTPS requis (HTTP accepté seulement en réseau privé / Tailscale).');
+ else if(!llmModel(env)) list.push('Modèle payant refusé : sur OpenRouter, seuls openrouter/free et les modèles :free sont acceptés.');
  if(env.MAIL_PROVIDER === 'log' && production) list.push('MAIL_PROVIDER=log : les liens de connexion sont écrits dans le journal. À réserver à l’amorçage.');
  if(production && !createAccessPolicy(env).restricted) list.push('ALLOWED_EMAILS vide : toute adresse confirmée peut s’inscrire et utiliser l’assistant.');
  return list;
