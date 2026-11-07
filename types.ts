@@ -17,6 +17,16 @@ export interface ServiceTypeEntry {
   active: boolean;
 }
 
+/** Assignation planifiée (Calendrier) : rappel d'une course à faire, sans montant. */
+export interface Assignment {
+  id: string;
+  driver_email: string;
+  type: ServiceType;
+  date: string; // ISO (date et heure prévues)
+  description?: string;
+  created_at?: string;
+}
+
 export interface Service {
   id: string;
   driver_email: string;

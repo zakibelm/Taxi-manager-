@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 import { ApiError, backend, DEFAULT_SERVICE_TYPES } from './services/storage';
 
-import { Service, ServiceTypeEntry, UserSession } from './types';
+import { Assignment, Service, ServiceTypeEntry, UserSession } from './types';
 
 import { Sidebar, BottomNav } from './components/Sidebar';
 
@@ -30,6 +30,7 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
 
   const [services, setServices] = useState<Service[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [serviceTypes, setServiceTypes] = useState<ServiceTypeEntry[]>(DEFAULT_SERVICE_TYPES.map(name => ({ name, active: true })));
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -80,6 +81,7 @@ const App: React.FC = () => {
 
         refreshServices();
         refreshServiceTypes();
+        refreshAssignments();
     }
 
   }, [session]);
@@ -87,7 +89,7 @@ const App: React.FC = () => {
   // Retour du réseau : envoi des courses saisies hors ligne, puis rechargement.
   useEffect(() => {
     if (!session) return;
-    const onOnline = () => { refreshServices(); refreshServiceTypes(); };
+    const onOnline = () => { refreshServices(); refreshServiceTypes(); refreshAssignments(); };
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,6 +103,10 @@ const App: React.FC = () => {
   const refreshServiceTypes = async () => {
     // En cas d'échec, on garde la dernière liste connue : la saisie reste possible.
     try { setServiceTypes(await backend.getServiceTypes()); } catch { /* liste précédente conservée */ }
+  };
+
+  const refreshAssignments = async () => {
+    try { setAssignments(await backend.getAssignments()); } catch { /* liste précédente conservée (hors ligne) */ }
   };
 
   const refreshServices = async () => {
@@ -227,7 +233,8 @@ const App: React.FC = () => {
 
                         <Dashboard 
 
-                            services={services} 
+                            services={services}
+                            assignments={assignments} 
 
                             navigateToChat={() => navigate('chat')}
                             onNavigate={navigate}
@@ -256,7 +263,7 @@ const App: React.FC = () => {
                     )}
 
                     {currentPage === 'calendar' && (
-                        <Calendar services={services} serviceTypes={serviceTypes} onServiceAdded={refreshServices} onTypeCreated={addLocalType} />
+                        <Calendar services={services} assignments={assignments} serviceTypes={serviceTypes} onServiceAdded={refreshServices} onAssignmentsChanged={refreshAssignments} onTypeCreated={addLocalType} />
                     )}
 
                     {currentPage === 'profile' && (
