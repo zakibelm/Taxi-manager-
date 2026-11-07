@@ -145,6 +145,30 @@ test('courses : propriétaire imposé par le serveur, isolation entre chauffeurs
  } finally { await app.close(); }
 });
 
+test('assignations planifiées : sans montant, isolées par chauffeur, admin voit tout', async () => {
+ const app = await start();
+ try {
+  const a = await signUp(app, 'a@example.test', 'A');
+  const b = await signUp(app, 'b@example.test', 'B');
+  const boss = await signUp(app, 'patron@example.test', 'Patron');
+  const plan = { type: 'olymel', date: '2026-11-10T13:30:00.000Z', description: 'Usine, quai 3' };
+  assert.equal((await app.call('/api/assignments', { method: 'POST', body: plan })).status, 401);
+  assert.equal((await app.call('/api/assignments', { method: 'POST', cookie: a.cookie, body: { ...plan, amount: 20 } })).status, 400, 'pas de montant');
+  assert.equal((await app.call('/api/assignments', { method: 'POST', cookie: a.cookie, body: { ...plan, type: 'Autre' } })).status, 400);
+  const created = await app.call('/api/assignments', { method: 'POST', cookie: a.cookie, body: plan });
+  assert.equal(created.status, 201);
+  assert.equal(created.data.assignment.type, 'Olymel');
+  assert.equal(app.n8n.db.assignments[0].driver_email, 'a@example.test');
+  assert.equal((await app.call('/api/assignments', { cookie: a.cookie })).data.assignments.length, 1);
+  assert.equal((await app.call('/api/assignments', { cookie: b.cookie })).data.assignments.length, 0);
+  assert.equal((await app.call('/api/assignments', { cookie: boss.cookie })).data.assignments.length, 1);
+  const id = created.data.assignment.id;
+  assert.equal((await app.call('/api/assignments/' + id, { method: 'DELETE', cookie: b.cookie })).status, 404);
+  assert.equal((await app.call('/api/assignments/' + id, { method: 'DELETE', cookie: a.cookie })).status, 200);
+  assert.equal(app.n8n.db.assignments.length, 0);
+ } finally { await app.close(); }
+});
+
 test('tentatives limitées par n8n, et n8n absent = 503 sans repli local', async () => {
  const app = await start();
  try {

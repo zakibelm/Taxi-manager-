@@ -3,7 +3,8 @@ import { createLlmProvider } from './providers/openrouter.mjs';
 import { privateFiles } from './files.mjs';
 import { securityHeaders } from './security.mjs';
 import { createAuthMiddleware } from './auth.mjs';
-import { createN8nClient, createServicesProvider } from './providers/n8n.mjs';
+import { createN8nClient, createServicesProvider, createAssignmentsProvider } from './providers/n8n.mjs';
+import { createAssignmentsMiddleware } from './assignments.mjs';
 import { createN8nStore } from './store.mjs';
 import { createServicesMiddleware } from './services.mjs';
 import { createServiceTypesMiddleware } from './service-types.mjs';
@@ -26,6 +27,7 @@ export function createApiMiddlewares(env, { fetcher = fetch } = {}) {
  return [
   securityHeaders(env), privateFiles, health, registration, auth,
   createServicesMiddleware({ getUser: auth.getUser, provider: services, env }),
+  createAssignmentsMiddleware({ getUser: auth.getUser, provider: createAssignmentsProvider(client), env }),
   createServiceTypesMiddleware({ getUser: auth.getUser, provider: services, env }),
   createChatMiddleware({ getUser: auth.getUser, provider: createLlmProvider(env), services })
  ];

@@ -50,6 +50,14 @@ export function serviceInput(value, withOwner = false, allowedTypes = null) {
   if (typeof value.date !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value.date) || !Number.isFinite(Date.parse(value.date)) || new Date(value.date).toISOString().replace('.000Z','Z') !== value.date.replace('.000Z','Z')) throw new Error('Date ISO UTC valide requise.');
   return { ...(id ? { id } : {}), type: value.type, amount: value.amount, date: value.date, description: text(value.description ?? '', 500, false), ...(withOwner ? { driver_email: email(value.driver_email) } : {}) };
 }
+// Assignation planifiée (Calendrier) : type, date/heure, note ; pas de montant (la course n'est pas encore faite).
+export function assignmentInput(value) {
+  object(value, ['id', 'type', 'date', 'description']);
+  const id = value.id === undefined ? undefined : serviceId(value.id);
+  const type = typeName(value.type);
+  if (typeof value.date !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value.date) || !Number.isFinite(Date.parse(value.date))) throw new Error('Date ISO UTC valide requise.');
+  return { ...(id ? { id } : {}), type, date: value.date, description: text(value.description ?? '', 500, false) };
+}
 export function serviceId(value) {
   if (typeof value !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value)) throw new Error('Identifiant invalide.');
   return value;
