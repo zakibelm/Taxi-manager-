@@ -10,7 +10,14 @@ APK Android (Capacitor) ──HTTPS──► Serveur Taxi Manager (Node) ──X
 
 L'APK n'embarque aucun secret : il affiche le site hébergé, et c'est le serveur qui détient le jeton n8n et la clé OpenRouter.
 
-## Données (n8n)
+## Données (n8n + copie SQLite)
+
+**Copie SQLite des courses (facultative, `SQLITE_PATH`).** Quand elle est activée, chaque course enregistrée dans n8n est aussitôt copiée dans un fichier SQLite sur le VPS (écriture double : n8n d'abord, SQLite ensuite ; une panne SQLite n'empêche jamais d'enregistrer une course, elle est écrite dans le journal `[sqlite]` et rattrapée la nuit suivante). Les prévisions et la carte « Ma compagnie » sont alors calculées depuis SQLite (cache de 5 min, invalidé à chaque écriture), sans appeler n8n. « Mes courses » reste calculé sur l'appareil. Google Sheets n'est pas dans le chemin des données.
+
+Entretien quotidien (cron ou minuterie systemd) : `node server/sqlite-sync.mjs` — rattrapage (copie toute course de n8n absente ou modifiée dans SQLite ; sert aussi à copier l'historique existant lors de la première exécution) puis sauvegarde datée `rides-AAAAMMJJ.db` dans `SQLITE_BACKUP_DIR` (les `SQLITE_BACKUP_KEEP` derniers, 14 par défaut). **Fenêtre glissante n8n (facultative, `N8N_RETENTION_DAYS`, minimum 7, désactivée par défaut).** Avec par exemple `35`, la tâche quotidienne retire de n8n les courses plus vieilles que 35 jours, mais seulement après la sauvegarde du jour et seulement celles dont la copie SQLite est identique (identifiant, date, montant, chauffeur). Pour le chauffeur, rien ne change : la liste des courses fusionne n8n (récent) et SQLite (ancien), et les suppressions touchent les deux. Pour désactiver : retirer la variable ; les courses déjà retirées de n8n restent dans SQLite.
+
+**Le dossier de sauvegarde est sur le même VPS : copiez-le chaque jour hors du VPS (rclone, rsync ou instantané Hostinger), sinon la perte du serveur emporte aussi les sauvegardes.** Fichier en permissions 600, dans un dossier hors de `dist/`.
+
 
 | Data Table | Contenu | Workflow |
 |---|---|---|
@@ -18,9 +25,12 @@ L'APK n'embarque aucun secret : il affiche le site hébergé, et c'est le serveu
 | `taximanager_account_tokens_tm` | Liens de confirmation et de réinitialisation (hachés, usage unique) | Taxi Manager - Comptes et récupération TM |
 | `taximanager_sessions_tm` | Sessions (empreinte SHA-256 du cookie, 8 h) | Taxi Manager - Authentification production TM |
 | `taximanager_login_attempts_tm` | Tentatives de connexion (IP et identifiant en empreinte HMAC) | Taxi Manager - Authentification production TM |
-| `taximanager_services_tm` | Courses | Taxi Manager - Courses TM |
+| `taximanager_services_tm` | Courses (dont, facultatif, `origin_lat` et `origin_lng` : origine de l'appel arrondie à ≈ 100 m, case « Localiser l'origine de l'appel ») | Taxi Manager - Courses TM |
+| `taximanager_companies_tm` | Compagnies (liste tenue par l'administrateur : nom, active) | Taxi Manager - Compagnies TM |
+| `taximanager_memberships_tm` | Compagnie d'appartenance de chaque chauffeur : statut (en attente, approuvée, refusée) et partage de ses zones (opt-in) | Taxi Manager - Compagnies TM |
 
 Les 3 workflows TM sont **actifs**. Leurs webhooks sont sous `https://n8n.xtream.space/webhook/taximanager-tm/api/…` et exigent l'identifiant Header Auth **« DrivePilot application - webhook dédié »** (en-tête `X-DrivePilot-Token`) : `N8N_TOKEN` prend sa valeur. Les workflows DrivePilot eux-mêmes ne sont pas utilisés. Pour séparer complètement les deux applications plus tard, il suffira de créer un identifiant dédié avec le même nom d'en-tête et une autre valeur, puis de le brancher sur les 16 webhooks TM.
+Types de service : la liste `SERVICE_TYPES` du serveur, plus ceux ajoutés par un chauffeur avec « Autre… » dans le formulaire de course (enregistrés avec la course, proposés ensuite à ce chauffeur et à l’admin). **Compagnie d'appartenance** : le chauffeur choisit sa compagnie dans son profil, l'administrateur approuve (Paramètres), et chaque chauffeur décide de partager ou non ses zones. Les prévisions « Ma compagnie » (tableau de bord et assistant IA) sont calculées par le serveur sur les courses des membres approuvés qui partagent, et ne sont publiées qu'en zones agrégées avec au moins 3 chauffeurs distincts (`MIN_DRIVERS` dans `server/companies.mjs`).
 Les tables `taximanager_service_types_tm` et `taximanager_drivers_tm` existent mais ne sont pas encore utilisées.
 
 ## Démarrage
@@ -55,8 +65,13 @@ Le script installe Node 22, nginx et certbot, l'application dans `/opt/taximanag
 | `N8N_TOKEN` | Valeur de l'identifiant Header Auth TM. |
 | `HMAC_SECRET` | Clé des empreintes HMAC (IP, identifiants) dans n8n, générée par `install.sh`. À défaut, `N8N_TOKEN` est utilisé. |
 | `N8N_TOKEN_HEADER`, `N8N_PREFIX` | Facultatifs : `X-DrivePilot-Token` et `taximanager-tm` par défaut. |
+| `N8N_RETENTION_DAYS` | Facultatif : fenêtre glissante dans n8n (voir Données). Exige `SQLITE_BACKUP_DIR`. |
+| `CHAT_DAILY_LIMIT` | Facultatif : demandes à l'assistant par chauffeur et par jour (UTC), 150 par défaut. |
+| `CHAT_DAILY_GLOBAL` | Facultatif : demandes à l'assistant par jour pour tous les comptes, 3000 par défaut. |
+| `SQLITE_PATH`, `SQLITE_BACKUP_DIR`, `SQLITE_BACKUP_KEEP` | Facultatifs : fichier de la copie SQLite des courses (ex. `/var/lib/taximanager/rides.db`), dossier des sauvegardes quotidiennes et nombre à conserver. Sans `SQLITE_PATH`, le comportement est inchangé (tout dans n8n). |
 | `ADMIN_EMAILS` | Courriels administrateurs (séparés par des virgules) : l'admin voit les courses de tous les chauffeurs. |
 | `ALLOWED_EMAILS` | Chauffeurs autorisés : courriels ou domaines (`@flotte.ca`), séparés par des virgules. Vide : toute adresse confirmée peut s'inscrire (et utiliser l'assistant). Retirer une adresse refuse la connexion et ferme ses sessions. Les admins sont toujours autorisés. **Recommandé en production.** |
+| `MAP_TILE_HOST` | Facultatif : hôte HTTPS des tuiles de la carte du tableau de bord, seule origine externe autorisée par la politique de sécurité (images seulement). Défaut : `https://*.tile.openstreetmap.org` (gratuit, attribution affichée). Pour changer de fournisseur, modifier aussi l'URL dans `utils/mapConfig.ts`. |
 | `PUBLIC_URL` | Adresse publique utilisée dans les liens des courriels. Obligatoire en production. |
 | `MAIL_PROVIDER` | `n8n` (défaut, SMTP du workflow Comptes TM) ou `log` (lien écrit dans le journal du serveur). |
 | `SERVICE_TYPES` | Facultatif : types de course proposés. Défaut : Régulier, TCT, Olymel, Bombardier, Handami, James Miron. |

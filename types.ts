@@ -17,6 +17,16 @@ export interface ServiceTypeEntry {
   active: boolean;
 }
 
+/** Assignation planifiée (Calendrier) : rappel d'une course à faire, sans montant. */
+export interface Assignment {
+  id: string;
+  driver_email: string;
+  type: ServiceType;
+  date: string; // ISO (date et heure prévues)
+  description?: string;
+  created_at?: string;
+}
+
 export interface Service {
   id: string;
   driver_email: string;
@@ -24,6 +34,9 @@ export interface Service {
   amount: number;
   date: string; // ISO string
   description?: string;
+  /** Origine de l'appel (case « Localiser l'appel », facultative) : coordonnées arrondies à ≈ 100 m. */
+  origin_lat?: number;
+  origin_lng?: number;
   created_at: string;
   updated_at: string;
   /** Saisie hors ligne, pas encore envoyée au serveur. */

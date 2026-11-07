@@ -1,4 +1,4 @@
-import type { Service, ServiceTypeEntry, AIConversation, UserSession, UserSettings } from '../types.ts';
+import type { Assignment, Service, ServiceTypeEntry, AIConversation, UserSession, UserSettings } from '../types.ts';
 
 
 
@@ -6,6 +6,7 @@ const DEMO_SERVICES = 'taximanager_demo_services';
 
 const DEMO_CHAT = 'taximanager_demo_chat';
 const DEMO_TYPES = 'taximanager_demo_types';
+const DEMO_ASSIGNMENTS = 'taximanager_demo_assignments';
 export const DEFAULT_SERVICE_TYPES = ['Régulier', 'TCT', 'Olymel', 'Bombardier', 'Handami', 'James Miron'];
 const TYPE_NAME = /^[\p{L}\p{N}][\p{L}\p{N} '&.\/-]*$/u;
 /** Même règle que le serveur : 1 à 40 caractères, lettres, chiffres, espaces et ' & . / - */
@@ -15,12 +16,19 @@ export function normalizeTypeName(value: string): string {
   return name;
 }
 
+/** Type saisi via « Autre » : validé, refuse « Autre » lui-même, et reprend la forme existante si le nom est déjà connu (casse ignorée). */
+export function resolveNewType(value: string, known: string[]): string {
+  const name = normalizeTypeName(value);
+  if (/^autres?$/i.test(name)) throw new Error('Donnez un nom précis au service (pas « Autre »).');
+  return known.find(k => k.toLowerCase() === name.toLowerCase()) ?? name;
+}
+
 const DEFAULT_SETTINGS: UserSettings = { enableRAG: true };
 
 // --- Hors ligne : file d'envoi et dernière liste connue (téléphone du chauffeur uniquement, vidées à la déconnexion) ---
 const PENDING = 'taximanager_pending_services';
 const CACHE = 'taximanager_services_cache';
-type NewService = Pick<Service, 'type' | 'amount' | 'date' | 'description'>;
+type NewService = Pick<Service, 'type' | 'amount' | 'date' | 'description' | 'origin_lat' | 'origin_lng'>;
 type PendingService = NewService & { id: string; driver_email: string; created_at: string };
 /** Erreur réseau (pas de connexion, serveur injoignable) : distincte d'un refus du serveur. */
 class OfflineError extends Error {}
@@ -161,7 +169,7 @@ class BackendService {
     let sent = 0;
     for (const p of this.pending()) {
       try {
-        await this.api('/api/services', 'POST', { id: p.id, type: p.type, amount: p.amount, date: p.date, description: p.description ?? '' });
+        await this.api('/api/services', 'POST', { id: p.id, type: p.type, amount: p.amount, date: p.date, description: p.description ?? '', ...(p.origin_lat !== undefined && p.origin_lng !== undefined ? { origin_lat: p.origin_lat, origin_lng: p.origin_lng } : {}) });
         this.savePending(this.pending().filter(x => x.id !== p.id)); sent++;
       } catch (error) {
         if (error instanceof OfflineError) break;            // toujours hors ligne : on réessaiera
@@ -224,6 +232,29 @@ class BackendService {
 
     localStorage.setItem(DEMO_SERVICES, JSON.stringify(this.demoRows().filter(s => s.id !== id)));
 
+  }
+
+  // --- Assignations planifiées (Calendrier) : en ligne uniquement ; en démo, gardées sur l'appareil ---
+  private demoAssignments(): Assignment[] {
+    try { const rows = JSON.parse(localStorage.getItem(DEMO_ASSIGNMENTS) || '[]'); return Array.isArray(rows) ? rows : []; } catch { return []; }
+  }
+  async getAssignments(): Promise<Assignment[]> {
+    if (this.demo) return this.demoAssignments();
+    return (await this.api('/api/assignments')).assignments;
+  }
+  async addAssignment(data: Pick<Assignment, 'type' | 'date' | 'description'>): Promise<Assignment> {
+    const id = crypto.randomUUID();
+    if (!this.demo) {
+      try { return (await this.api('/api/assignments', 'POST', { ...data, id })).assignment; }
+      catch (error) { if (error instanceof OfflineError) throw new Error('Pas de connexion : l’assignation n’a pas été enregistrée. Réessayez avec du réseau.'); throw error; }
+    }
+    const row: Assignment = { ...data, id, driver_email: 'demo@example.test', created_at: new Date().toISOString() };
+    localStorage.setItem(DEMO_ASSIGNMENTS, JSON.stringify([...this.demoAssignments(), row]));
+    return row;
+  }
+  async deleteAssignment(id: string): Promise<void> {
+    if (!this.demo) { await this.api('/api/assignments/' + encodeURIComponent(id), 'DELETE'); return; }
+    localStorage.setItem(DEMO_ASSIGNMENTS, JSON.stringify(this.demoAssignments().filter(a => a.id !== id)));
   }
 
   // --- Types de service (liste fixée sur le serveur ; en démo, modifiable localement) ---

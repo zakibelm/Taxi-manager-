@@ -238,7 +238,7 @@ export const BottomNav: React.FC<NavigationProps> = ({ currentPage, onNavigate, 
 
     return (
 
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-3 py-2 pb-6 z-50 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-3 py-2 pb-6 z-50 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.05)]" style={{ bottom: 'var(--ad-h, 0px)' }}>
 
             {navItems.map((item) => (
 

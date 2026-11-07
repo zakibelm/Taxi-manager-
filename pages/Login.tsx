@@ -177,6 +177,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </>
             )}
           </form>
+          <p className="text-center text-xs text-slate-400 mt-6">
+            <a href="/confidentialite/" className="hover:text-slate-600 underline">Politique de confidentialité</a>
+            <span className="block mt-1">© Créé par zakibelm 2026</span>
+          </p>
         </div>
       </div>
     </div>

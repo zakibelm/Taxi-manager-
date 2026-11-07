@@ -40,6 +40,24 @@ export function createN8nClient(env = process.env, fetcher = fetch) {
  return { call, configured: () => !!n8nBase(env) };
 }
 
+/** Assignations planifiées : workflow « Taxi Manager - Assignations TM », table taximanager_assignments_tm. */
+export function createAssignmentsProvider(client) {
+ const unavailable = 'Le service des assignations est indisponible.';
+ const rows = data => { if(!Array.isArray(data.assignments)) throw new HttpError(502, 'Réponse du service invalide.'); return data.assignments; };
+ return {
+  async list(user) {
+   const data = user.role === 'admin'
+    ? await client.call('assignments/all', { unavailable })
+    : await client.call('assignments/list', { query: { email: user.email }, unavailable });
+   return rows(data).filter(a => user.role === 'admin' || a.driver_email === user.email);
+  },
+  async create(data, id) {
+   return (await client.call('assignments/create', { method: 'POST', body: { ...data, assignment_id: id || randomUUID() }, unavailable })).assignment;
+  },
+  async delete(id, owner) { await client.call('assignments/delete', { method: 'DELETE', body: { id, driver_email: owner }, unavailable }); }
+ };
+}
+
 /** Courses : workflow « Taxi Manager - Courses TM », table taximanager_services_tm. */
 export function createServicesProvider(client) {
  const unavailable = 'Le service de courses est indisponible. Aucune donnée locale de remplacement.';
@@ -59,5 +77,17 @@ export function createServicesProvider(client) {
    return (await client.call('services/create', { method: 'POST', body: { ...data, service_id: id || randomUUID() }, unavailable })).service;
   },
   async delete(id, owner) { await client.call('services/delete', { method: 'DELETE', body: { id, driver_email: owner }, unavailable }); }
+ };
+}
+
+/** Compagnies et adhésions : workflow « Taxi Manager - Compagnies TM », tables taximanager_companies_tm et taximanager_memberships_tm. */
+export function createCompaniesProvider(client) {
+ const unavailable = 'Le service des compagnies est indisponible.';
+ const rows = (data, key) => { if(!Array.isArray(data[key])) throw new HttpError(502, 'Réponse du service invalide.'); return data[key]; };
+ return {
+  async companies() { return rows(await client.call('companies/all', { unavailable }), 'companies'); },
+  async saveCompany(company) { await client.call('companies/save', { method: 'POST', body: company, unavailable }); return company; },
+  async memberships() { return rows(await client.call('memberships/all', { unavailable }), 'memberships'); },
+  async saveMembership(membership) { await client.call('memberships/save', { method: 'POST', body: membership, unavailable }); return membership; }
  };
 }

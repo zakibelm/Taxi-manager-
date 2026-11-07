@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { showBannerAd, hideBannerAd } from './utils/ads';
 
 import { ApiError, backend, DEFAULT_SERVICE_TYPES } from './services/storage';
 
-import { Service, ServiceTypeEntry, UserSession } from './types';
+import { Assignment, Service, ServiceTypeEntry, UserSession } from './types';
 
 import { Sidebar, BottomNav } from './components/Sidebar';
 
@@ -31,6 +32,7 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
 
   const [services, setServices] = useState<Service[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [serviceTypes, setServiceTypes] = useState<ServiceTypeEntry[]>(DEFAULT_SERVICE_TYPES.map(name => ({ name, active: true })));
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -81,14 +83,18 @@ const App: React.FC = () => {
 
         refreshServices();
         refreshServiceTypes();
+        refreshAssignments();
     }
 
   }, [session]);
 
   // Retour du réseau : envoi des courses saisies hors ligne, puis rechargement.
+  // Bannière publicitaire (APK seulement) : affichée une fois connecté, retirée à la déconnexion.
+  useEffect(() => { if (session) showBannerAd(); else hideBannerAd(); }, [session]);
+
   useEffect(() => {
     if (!session) return;
-    const onOnline = () => { refreshServices(); refreshServiceTypes(); };
+    const onOnline = () => { refreshServices(); refreshServiceTypes(); refreshAssignments(); };
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,9 +102,16 @@ const App: React.FC = () => {
 
 
 
+  // Type ajouté via « Autre » : proposé tout de suite ; le serveur le garde dès qu'une course l'utilise.
+  const addLocalType = (name: string) => setServiceTypes(prev =>
+    prev.some(t => t.name.toLowerCase() === name.toLowerCase()) ? prev : [...prev, { name, active: true }]);
   const refreshServiceTypes = async () => {
     // En cas d'échec, on garde la dernière liste connue : la saisie reste possible.
     try { setServiceTypes(await backend.getServiceTypes()); } catch { /* liste précédente conservée */ }
+  };
+
+  const refreshAssignments = async () => {
+    try { setAssignments(await backend.getAssignments()); } catch { /* liste précédente conservée (hors ligne) */ }
   };
 
   const refreshServices = async () => {
@@ -225,7 +238,8 @@ const App: React.FC = () => {
 
                         <Dashboard 
 
-                            services={services} 
+                            services={services}
+                            assignments={assignments} 
 
                             navigateToChat={() => navigate('chat')}
                             onNavigate={navigate}
@@ -248,6 +262,7 @@ const App: React.FC = () => {
                             autoOpenForm={openAddForm}
                             onFormOpened={() => setOpenAddForm(false)}
                             serviceTypes={serviceTypes}
+                            onTypeCreated={addLocalType}
                         />
 
                     )}
@@ -255,7 +270,7 @@ const App: React.FC = () => {
                     {currentPage === 'analysis' && <Analysis services={services} />}
 
                     {currentPage === 'calendar' && (
-                        <Calendar services={services} serviceTypes={serviceTypes} onServiceAdded={refreshServices} />
+                        <Calendar assignments={assignments} serviceTypes={serviceTypes} onServiceAdded={refreshServices} onAssignmentsChanged={refreshAssignments} onTypeCreated={addLocalType} />
                     )}
 
                     {currentPage === 'profile' && (
@@ -281,6 +296,12 @@ const App: React.FC = () => {
                         />
 
                     )}
+
+                    <footer className="mt-10 pt-4 border-t border-slate-200 text-center text-xs text-slate-400">
+                        © Créé par zakibelm 2026 · <a href="/confidentialite/" className="underline hover:text-slate-600">Confidentialité</a>
+                    </footer>
+                    {/* Espace sous le contenu égal à la hauteur de la bannière publicitaire (0 hors APK) */}
+                    <div aria-hidden="true" style={{ height: 'var(--ad-h, 0px)' }} />
 
                 </div>
 

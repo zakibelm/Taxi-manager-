@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { TrendingUp, TrendingDown, RotateCcw } from 'lucide-react';
 import { Service } from '../types';
-import { monthRange, previousRange, summarize, variation, weekRange } from '../utils/stats';
+import { monthRange, previousRange, summarize, variation, weekRange, TAX_RATES } from '../utils/stats';
 
 const money = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 
@@ -65,6 +65,21 @@ const PeriodAnalysis: React.FC<{ services: Service[]; initial?: 'week' | 'month'
             <div className="bg-slate-50 rounded-2xl p-4"><p className="text-xs text-slate-500">Meilleur jour</p>
               <p className="text-xl font-bold text-slate-900">{data.current.best ? money(data.current.best.amount) : '—'}</p>
               <p className="text-[11px] text-slate-500">{data.current.best?.day}</p></div>
+          </div>
+
+          {/* Cumul des taxes et du SEV sur la période (montants saisis taxes incluses) */}
+          <div className="border border-slate-100 rounded-2xl p-4 space-y-3" aria-labelledby="taxes-title">
+            <div className="flex items-baseline justify-between gap-2">
+              <h4 id="taxes-title" className="text-sm font-bold text-slate-900">Cumul TPS, TVQ et SEV</h4>
+              <p className="text-[11px] text-slate-400">Montants taxes incluses</p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="bg-amber-50 rounded-xl p-3"><p className="text-xs text-slate-500">TPS (5 %)</p><p className="text-lg font-bold text-slate-900">{money(data.current.taxes.tps)}</p></div>
+              <div className="bg-amber-50 rounded-xl p-3"><p className="text-xs text-slate-500">TVQ (9,975 %)</p><p className="text-lg font-bold text-slate-900">{money(data.current.taxes.tvq)}</p></div>
+              <div className="bg-amber-50 rounded-xl p-3"><p className="text-xs text-slate-500">SEV ({money(TAX_RATES.sevPerRide)} × {data.current.count})</p><p className="text-lg font-bold text-slate-900">{money(data.current.taxes.sev)}</p></div>
+              <div className="bg-amber-100 rounded-xl p-3"><p className="text-xs text-slate-600 font-bold">Total TPS + TVQ + SEV</p><p className="text-lg font-bold text-slate-900">{money(data.current.taxes.totalDue)}</p></div>
+              <div className="col-span-2 md:col-span-1 bg-green-50 rounded-xl p-3"><p className="text-xs text-slate-500">Revenu net</p><p className="text-lg font-bold text-green-700">{money(data.current.taxes.net)}</p></div>
+            </div>
           </div>
 
           <p className="text-sm text-slate-600 flex items-center gap-2">
