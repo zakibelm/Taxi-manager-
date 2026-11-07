@@ -1,5 +1,5 @@
 import { HttpError, jsonBody, reply, sameOrigin, validate } from './http.mjs';
-import { serviceInput, serviceId, serviceTypes } from './validation.mjs';
+import { serviceInput, serviceId, serviceTypes, canonicalType } from './validation.mjs';
 export function createServicesMiddleware({ getUser, provider, env = process.env }) {
  return async (req,res,next) => {
   const url = new URL(req.url, 'http://local');
@@ -15,7 +15,8 @@ export function createServicesMiddleware({ getUser, provider, env = process.env 
    }
    if(req.method==='POST' && url.pathname==='/api/services') {
     const body = await jsonBody(req);
-    const {id,...input}=validate(()=>serviceInput(body,false,serviceTypes(env)));
+    // Type : un de la liste du serveur ou un nouveau type saisi via « Autre » (format contrôlé, « Autre » lui-même refusé).
+    const {id,...input}=validate(()=>{ const v=serviceInput(body,false); return {...v,type:canonicalType(v.type,serviceTypes(env))}; });
     if(id) {
      // Renvoi d'une course déjà reçue (file hors ligne) : on rend l'existante au lieu de créer un doublon.
      const existing=(await provider.list(user)).find(s=>s.id===id);

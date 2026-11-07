@@ -26,7 +26,7 @@ export function createApiMiddlewares(env, { fetcher = fetch } = {}) {
  return [
   securityHeaders(env), privateFiles, health, registration, auth,
   createServicesMiddleware({ getUser: auth.getUser, provider: services, env }),
-  createServiceTypesMiddleware({ getUser: auth.getUser, env }),
+  createServiceTypesMiddleware({ getUser: auth.getUser, provider: services, env }),
   createChatMiddleware({ getUser: auth.getUser, provider: createLlmProvider(env), services })
  ];
 }

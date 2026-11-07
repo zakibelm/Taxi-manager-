@@ -14,6 +14,20 @@ export function serviceTypes(env = {}) {
   try { if (custom.length) return [...new Set(custom.map(typeName))]; } catch { /* liste invalide : défaut */ }
   return DEFAULT_SERVICE_TYPES;
 }
+/** Nom déjà connu (casse ignorée) → forme existante ; sinon le nom validé tel quel (type ajouté via « Autre »). */
+export function canonicalType(value, known = []) {
+  const name = typeName(value);
+  return known.find(k => k.toLowerCase() === name.toLowerCase()) ?? name;
+}
+/** Liste du chauffeur : types du serveur + types déjà utilisés dans ses courses (ajoutés via « Autre »). */
+export function mergeTypes(base, used = []) {
+  const out = [...base];
+  for(const value of used) {
+   let name; try { name = typeName(value); } catch { continue; }
+   if(!out.some(k => k.toLowerCase() === name.toLowerCase())) out.push(name);
+  }
+  return out;
+}
 export function object(value, keys) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k => !keys.includes(k))) throw new Error('Champs invalides ou inconnus.');
 }

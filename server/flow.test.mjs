@@ -116,7 +116,8 @@ test('courses : propriétaire imposé par le serveur, isolation entre chauffeurs
   const course = { type: 'Régulier', amount: 42.5, date: '2026-11-03T12:00:00.000Z', description: 'Aéroport' };
   assert.equal((await app.call('/api/services', { method: 'POST', body: course })).status, 401);
   assert.equal((await app.call('/api/services', { method: 'POST', cookie: a.cookie, body: { ...course, driver_email: 'b@example.test' } })).status, 400);
-  assert.equal((await app.call('/api/services', { method: 'POST', cookie: a.cookie, body: { ...course, type: 'Inventé' } })).status, 400);
+  assert.equal((await app.call('/api/services', { method: 'POST', cookie: a.cookie, body: { ...course, type: 'Autre' } })).status, 400, '« Autre » n’est pas un type');
+  assert.equal((await app.call('/api/services', { method: 'POST', cookie: a.cookie, body: { ...course, type: '<script>' } })).status, 400);
   const created = await app.call('/api/services', { method: 'POST', cookie: a.cookie, body: course });
   assert.equal(created.status, 201);
   assert.equal(app.n8n.db.services[0].driver_email, 'a@example.test');
@@ -131,6 +132,16 @@ test('courses : propriétaire imposé par le serveur, isolation entre chauffeurs
   const types = await app.call('/api/service-types', { cookie: a.cookie });
   assert.ok(types.data.types.some(t => t.name === 'Régulier'));
   assert.equal((await app.call('/api/service-types', { method: 'POST', cookie: boss.cookie, body: { name: 'X' } })).status, 405);
+  // Nouveau type via « Autre » : enregistré avec la course, puis proposé au chauffeur (et à l'admin), pas aux autres.
+  const custom = await app.call('/api/services', { method: 'POST', cookie: a.cookie, body: { ...course, type: 'Hôpital Pierre-Le Gardeur' } });
+  assert.equal(custom.status, 201);
+  const has = async (who, name) => (await app.call('/api/service-types', { cookie: who.cookie })).data.types.some(t => t.name === name);
+  assert.ok(await has(a, 'Hôpital Pierre-Le Gardeur'));
+  assert.ok(await has(boss, 'Hôpital Pierre-Le Gardeur'));
+  assert.ok(!(await has(b, 'Hôpital Pierre-Le Gardeur')));
+  // Casse différente d'un type existant : ramené à la forme connue, pas de doublon.
+  const olymel = await app.call('/api/services', { method: 'POST', cookie: a.cookie, body: { ...course, type: 'olymel' } });
+  assert.equal(olymel.data.service.type, 'Olymel');
  } finally { await app.close(); }
 });
 
