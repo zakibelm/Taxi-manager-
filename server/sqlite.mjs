@@ -55,6 +55,7 @@ export function openRideStore(file = ':memory:') {
  const removeOne = db.prepare('DELETE FROM rides WHERE service_id = ? AND driver_email = ?');
  const removeDriver = db.prepare('DELETE FROM rides WHERE driver_email = ?');
  const byDriver = db.prepare('SELECT * FROM rides WHERE driver_email = ? ORDER BY date DESC');
+ const one = db.prepare('SELECT * FROM rides WHERE service_id = ?');
  const all = db.prepare('SELECT * FROM rides ORDER BY date DESC');
  const since = db.prepare('SELECT * FROM rides WHERE date >= ? ORDER BY date DESC');
  const count = db.prepare('SELECT COUNT(*) AS n FROM rides');
@@ -74,6 +75,7 @@ export function openRideStore(file = ':memory:') {
   remove(serviceId, driverEmail) { const r = removeOne.run(serviceId, driverEmail); version++; return r.changes; },
   /** Effacement de toutes les courses d'un chauffeur (suppression de compte). */
   removeDriver(driverEmail) { const r = removeDriver.run(driverEmail); version++; return r.changes; },
+  get: id => { const r = one.get(id); return r ? fromRow(r) : null; },
   listByDriver: email => byDriver.all(email).map(fromRow),
   listAll: () => all.all().map(fromRow),
   listSince: iso => since.all(iso).map(fromRow),

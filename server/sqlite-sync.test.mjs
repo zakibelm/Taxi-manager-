@@ -40,3 +40,32 @@ test('sauvegarde datée, relance du même jour remplace, anciennes supprimées',
  for(const d of ['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-03']) backupRides({ store, dir, keep: 2, now: new Date(`${d}T05:00:00Z`) });
  assert.deepEqual(readdirSync(dir).sort(), ['rides-20261102.db', 'rides-20261103.db']);
 });
+
+import { purgeOldFromN8n } from './sqlite-sync.mjs';
+import { createMirroredServices } from './providers/mirror.mjs';
+
+test('purge n8n : seulement les courses anciennes dont la copie SQLite est identique', async () => {
+ const n8n = createFakeN8n({ now: () => 0 });
+ n8n.db.services.push(row('old-ok', { date: '2026-08-01T10:00:00Z' }), row('old-nocopy', { date: '2026-08-02T10:00:00Z' }), row('recent', { date: '2026-11-01T10:00:00Z' }));
+ const source = createServicesProvider(createN8nClient(n8n.env, n8n.fetcher));
+ const store = openRideStore();
+ store.upsert(row('old-ok', { date: '2026-08-01T10:00:00Z' }));
+ store.upsert(row('recent', { date: '2026-11-01T10:00:00Z' }));
+ const r = await purgeOldFromN8n({ source, store, days: 35, now: new Date('2026-11-07T12:00:00Z') });
+ assert.deepEqual(r, { removed: 1, kept: 1 });
+ assert.deepEqual(n8n.db.services.map(s => s.service_id).sort(), ['old-nocopy', 'recent']);
+ assert.equal(store.count(), 2);
+});
+
+test('liste fusionnée : récent depuis n8n + ancien depuis SQLite, sans doublon, propriétaire respecté', async () => {
+ const n8n = createFakeN8n({ now: () => 0 });
+ n8n.db.services.push(row('new', { date: '2026-11-01T10:00:00Z' }));
+ const store = openRideStore();
+ store.upsertMany([row('new', { date: '2026-11-01T10:00:00Z' }), row('old', { date: '2026-08-01T10:00:00Z' }), row('other', { driver_email: 'b@x.test' })]);
+ const services = createMirroredServices({ primary: createServicesProvider(createN8nClient(n8n.env, n8n.fetcher)), store });
+ const mine = await services.list({ role: 'chauffeur', email: 'a@x.test' });
+ assert.deepEqual(mine.map(r => r.id).sort(), ['new', 'old']);
+ assert.equal((await services.list({ role: 'admin', email: 'z@x.test' })).length, 3);
+ await services.delete('old', 'a@x.test');
+ assert.equal(store.count(), 2);
+});
