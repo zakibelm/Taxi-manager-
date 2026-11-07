@@ -37,8 +37,15 @@ jobs:
       - run: npm run build
 
       - name: Projet Android
+        env:
+          # Identifiant d'application AdMob (public) ; le bloc de bannière est dans utils/ads.ts.
+          ADMOB_APP_ID: ca-app-pub-1054414127660059~2854872316
         run: |
           npx cap add android
+          # AdMob : identifiant d'application dans le manifeste (obligatoire, sinon l'app plante au démarrage).
+          sed -i "s#</application>#    <meta-data android:name=\"com.google.android.gms.ads.APPLICATION_ID\" android:value=\"@string/admob_app_id\"/>\n    </application>#" android/app/src/main/AndroidManifest.xml
+          sed -i "s#</resources>#    <string name=\"admob_app_id\">${ADMOB_APP_ID}</string>\n</resources>#" android/app/src/main/res/values/strings.xml
+          grep -q "gms.ads.APPLICATION_ID" android/app/src/main/AndroidManifest.xml
           npx --yes @capacitor/assets@3.0.5 generate --android --iconBackgroundColor '#0f172a' --splashBackgroundColor '#ffffff' || echo "::warning::Icônes non générées, icône Capacitor par défaut."
           npx cap sync android
 
