@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Archive, RotateCcw, Plus } from 'lucide-react';
 import { backend } from '../services/storage';
 import { ServiceTypeEntry } from '../types';
+import CompaniesManager from '../components/CompaniesManager';
 
 interface SettingsProps {
   serviceTypes: ServiceTypeEntry[];
@@ -102,6 +103,7 @@ export default function Settings({ serviceTypes, onServiceTypesChange, canManage
   return <div className="space-y-6">
     <h2 className="text-2xl font-bold text-slate-900">Paramètres</h2>
     {canManageTypes && <ServiceTypesManager serviceTypes={serviceTypes} onServiceTypesChange={onServiceTypesChange} isDemo={isDemo} />}
+    {currentUser?.role === 'admin' && !isDemo && <CompaniesManager />}
     <form className="bg-white rounded-3xl p-6 space-y-5" onSubmit={async e => { e.preventDefault(); await backend.saveSettings(settings); setSaved(true); }}>
       <p className="text-slate-600">Les connexions aux services sont configurées par l’administrateur sur le serveur.</p>
       <label className="flex items-center gap-3"><input type="checkbox" checked={settings.enableRAG} onChange={e => { setSaved(false); setSettings({ enableRAG: e.target.checked }); }} />Inclure les statistiques de mes courses dans mes demandes à l’assistant</label>

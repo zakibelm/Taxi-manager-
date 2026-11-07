@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react';
 import { Assignment, Service } from '../types';
 import PeriodAnalysis from '../components/PeriodAnalysis';
-import ZoneCard from '../components/ZoneCard';
-import ZoneMap from '../components/ZoneMap';
+import ZoneSection from '../components/ZoneSection';
 import { Car, Clock, Plus, List, CalendarClock } from 'lucide-react';
 import { formatDate } from '../utils/date';
 
@@ -144,9 +143,7 @@ const Dashboard: React.FC<DashboardProps> = ({ services, assignments = [], navig
       </div>
 
       {/* Zone d'appel probable (courses localisées) */}
-      <ZoneCard services={services} />
-
-      <ZoneMap services={services} />
+      <ZoneSection services={services} />
 
       {/* Analyse de l'historique (semaine courante par défaut) */}
       <PeriodAnalysis services={services} />

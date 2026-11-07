@@ -1,7 +1,7 @@
 import { HttpError, jsonBody, reply, sameOrigin, validate } from './http.mjs';
 import { object, text } from './validation.mjs';
 import { hasPersonalData, PERSONAL_DATA_MESSAGE } from './privacy.mjs';
-export function createChatMiddleware({getUser,provider,services,now=Date.now}) {
+export function createChatMiddleware({getUser,provider,services,companies,now=Date.now}) {
  const quotas=new Map();
  return async(req,res,next)=>{
   const url=new URL(req.url,'http://local');
@@ -30,7 +30,9 @@ export function createChatMiddleware({getUser,provider,services,now=Date.now}) {
    quota.count++;quotas.set(user.id,quota);
    const rows=input.includeServices ? await services.list(user) : [];
    const visible=rows.filter(s=>user.role==='admin'||s.driver_email===user.email);
-   return reply(res,200,{response:await provider.complete(input.message,visible,input.model)});
+   // Prévisions de la compagnie (membres approuvés qui partagent, minimum 3 chauffeurs) : réservées aux chauffeurs qui ont demandé leurs statistiques.
+   const company=input.includeServices && companies && user.role==='chauffeur' ? await companies.digest(user).catch(()=>null) : null;
+   return reply(res,200,{response:await provider.complete(input.message,visible,input.model,{zonesCompagnie:company})});
   } catch(error) { reply(res,error.status || 500,{error:error.status ? error.message : 'Erreur interne.'}); }
  };
 }

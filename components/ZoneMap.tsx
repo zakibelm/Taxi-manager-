@@ -3,13 +3,14 @@ import { Map as MapIcon } from 'lucide-react';
 import { Service } from '../types';
 import { DAYS, SLOTS, hotspots, locatedRides, localParts, recommendZones, slotOf, MIN_SLOT } from '../utils/zones.mjs';
 import { LEVEL_STYLE, MAP_TILES } from '../utils/mapConfig';
+import { CompanyZones, companyApi } from '../services/company';
 
 const money = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 const pct = (n: number) => Math.round(n * 100) + ' %';
 
 /** Carte des secteurs d'achalandage prévus (rayon 5 km) : vert = forte, jaune = moyenne, rouge = faible.
  *  Basée sur les courses localisées, pour une tranche horaire (et, au choix, le même jour de la semaine). */
-const ZoneMap: React.FC<{ services: Service[] }> = ({ services }) => {
+const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ services, company = false }) => {
   const initial = useMemo(() => {
     const now = new Date(), here = localParts(now), slot = slotOf(here.hour);
     return { slotId: slot.id, day: here.day, sameDay: recommendZones(services, now).basis === 'day-slot' };
@@ -19,8 +20,24 @@ const ZoneMap: React.FC<{ services: Service[] }> = ({ services }) => {
   const [slotId, setSlotId] = useState(initial.slotId);
   const [sameDay, setSameDay] = useState(initial.sameDay);
 
-  const result = useMemo(() => hotspots(locatedRides(services, { slotId, day: sameDay ? initial.day : null })), [services, slotId, sameDay, initial.day]);
-  const totalLocated = useMemo(() => locatedRides(services).length, [services]);
+  const mine = useMemo(() => hotspots(locatedRides(services, { slotId, day: sameDay ? initial.day : null })), [services, slotId, sameDay, initial.day]);
+  const totalMine = useMemo(() => locatedRides(services).length, [services]);
+
+  // Mode compagnie : zones agrégées calculées par le serveur (membres approuvés qui partagent, minimum 3 chauffeurs).
+  const [remote, setRemote] = useState<CompanyZones | null>(null);
+  const [remoteError, setRemoteError] = useState('');
+  useEffect(() => {
+    if (!company) { setRemote(null); setRemoteError(''); return; }
+    let active = true;
+    setRemote(null); setRemoteError('');
+    companyApi.zones(slotId, sameDay ? initial.day : null)
+      .then(r => { if (active) setRemote(r); })
+      .catch(e => { if (active) setRemoteError(e instanceof Error ? e.message : 'Prévisions de la compagnie indisponibles.'); });
+    return () => { active = false; };
+  }, [company, slotId, sameDay, initial.day]);
+  const none = { status: 'insufficient' as const, located: 0, needed: MIN_SLOT, spots: [] as typeof mine.spots };
+  const result = company ? (remote?.status === 'ok' && remote.spots ? remote.spots as typeof mine : none) : mine;
+  const totalLocated = company ? result.located : totalMine;
 
   const box = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import('leaflet').Map | null>(null);
@@ -81,7 +98,7 @@ const ZoneMap: React.FC<{ services: Service[] }> = ({ services }) => {
     <section aria-labelledby="zonemap-title" className="bg-white rounded-[28px] p-6 shadow-sm border border-slate-100 space-y-4">
       <div>
         <h3 id="zonemap-title" className="font-bold text-slate-900 flex items-center gap-2"><MapIcon size={18} className="text-red-600" aria-hidden="true" /> Carte des zones d’achalandage</h3>
-        <p className="text-xs text-slate-500 mt-1">Secteurs de 5 km autour de vos appels localisés. Vert : forte, jaune : moyenne, rouge : faible.</p>
+        <p className="text-xs text-slate-500 mt-1">{company ? `Secteurs de 5 km calculés sur les appels des membres de ${remote?.company.name ?? 'votre compagnie'} qui partagent leurs zones.` : 'Secteurs de 5 km autour de vos appels localisés.'} Vert : forte, jaune : moyenne, rouge : faible.</p>
       </div>
 
       <div className="flex flex-wrap gap-2" role="group" aria-label="Tranche horaire">
@@ -99,7 +116,10 @@ const ZoneMap: React.FC<{ services: Service[] }> = ({ services }) => {
 
       {!showMap ? (
         <p className="text-sm text-slate-500">
-          {totalLocated === 0
+          {company && remoteError ? remoteError
+            : company && !remote ? 'Chargement des prévisions de la compagnie…'
+            : company && remote?.status === 'insufficient' ? `Les zones de la compagnie s’afficheront dès que ${remote.minDrivers} chauffeurs au moins partageront leurs zones (actuellement ${remote.contributors}).`
+            : totalLocated === 0
             ? 'Cochez « Localiser l’origine de l’appel » en saisissant vos courses : la carte se remplit au fil de vos appels.'
             : `Pas assez d’appels localisés pour cette période (il en faut au moins ${MIN_SLOT}). Essayez une autre tranche horaire${sameDay ? ' ou décochez « Seulement les ' + DAYS[initial.day] + 's »' : ''}.`}
         </p>
