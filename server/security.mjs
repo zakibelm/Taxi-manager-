@@ -3,7 +3,7 @@ export function sessionCookie(req, value, age, env = process.env) {
  return `taxi_session=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${age}${secure ? '; Secure' : ''}`;
 }
 /** Hôte des tuiles de la carte (OpenStreetMap par défaut, gratuit) : seule origine externe autorisée, et seulement pour les images. */
-export const DEFAULT_TILE_HOST='https://*.tile.openstreetmap.org';
+export const DEFAULT_TILE_HOST='https://tile.openstreetmap.org'; // l'hôte exact de utils/mapConfig.ts : « *.tile… » ne couvre pas « tile… » lui-même
 export function tileHost(env = process.env) {
  const value=String(env.MAP_TILE_HOST||'').trim();
  return /^https:\/\/(\*\.)?[a-z0-9.-]+\.[a-z]{2,}$/i.test(value) ? value : DEFAULT_TILE_HOST;
