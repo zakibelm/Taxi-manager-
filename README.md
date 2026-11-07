@@ -21,7 +21,7 @@ L'APK n'embarque aucun secret : il affiche le site hébergé, et c'est le serveu
 | `taximanager_services_tm` | Courses | Taxi Manager - Courses TM |
 
 Les 3 workflows TM sont **actifs**. Leurs webhooks sont sous `https://n8n.xtream.space/webhook/taximanager-tm/api/…` et exigent l'identifiant Header Auth **« DrivePilot application - webhook dédié »** (en-tête `X-DrivePilot-Token`) : `N8N_TOKEN` prend sa valeur. Les workflows DrivePilot eux-mêmes ne sont pas utilisés. Pour séparer complètement les deux applications plus tard, il suffira de créer un identifiant dédié avec le même nom d'en-tête et une autre valeur, puis de le brancher sur les 16 webhooks TM.
-Les tables `taximanager_service_types_tm` et `taximanager_drivers_tm` existent mais ne sont pas encore utilisées.
+Types de service : la liste `SERVICE_TYPES` du serveur, plus ceux ajoutés par un chauffeur avec « Autre… » dans le formulaire de course (enregistrés avec la course, proposés ensuite à ce chauffeur et à l’admin). Les tables `taximanager_service_types_tm` et `taximanager_drivers_tm` existent mais ne sont pas encore utilisées.
 
 ## Démarrage
 

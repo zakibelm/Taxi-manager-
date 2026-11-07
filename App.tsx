@@ -95,6 +95,9 @@ const App: React.FC = () => {
 
 
 
+  // Type ajouté via « Autre » : proposé tout de suite ; le serveur le garde dès qu'une course l'utilise.
+  const addLocalType = (name: string) => setServiceTypes(prev =>
+    prev.some(t => t.name.toLowerCase() === name.toLowerCase()) ? prev : [...prev, { name, active: true }]);
   const refreshServiceTypes = async () => {
     // En cas d'échec, on garde la dernière liste connue : la saisie reste possible.
     try { setServiceTypes(await backend.getServiceTypes()); } catch { /* liste précédente conservée */ }
@@ -247,12 +250,13 @@ const App: React.FC = () => {
                             autoOpenForm={openAddForm}
                             onFormOpened={() => setOpenAddForm(false)}
                             serviceTypes={serviceTypes}
+                            onTypeCreated={addLocalType}
                         />
 
                     )}
 
                     {currentPage === 'calendar' && (
-                        <Calendar services={services} serviceTypes={serviceTypes} onServiceAdded={refreshServices} />
+                        <Calendar services={services} serviceTypes={serviceTypes} onServiceAdded={refreshServices} onTypeCreated={addLocalType} />
                     )}
 
                     {currentPage === 'profile' && (
