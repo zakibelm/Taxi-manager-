@@ -40,15 +40,23 @@ export function email(value) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(result)) throw new Error('Courriel invalide.');
   return result;
 }
+/** Origine de l'appel (facultative, case « Localiser l'appel ») : les deux coordonnées ou aucune, arrondies à 3 décimales (≈ 100 m). */
+export function origin(value) {
+  const has = v => v !== undefined && v !== null;
+  if (!has(value.origin_lat) && !has(value.origin_lng)) return {};
+  const ok = (v, max) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= max;
+  if (!ok(value.origin_lat, 90) || !ok(value.origin_lng, 180)) throw new Error('Origine invalide.');
+  return { origin_lat: Math.round(value.origin_lat * 1000) / 1000, origin_lng: Math.round(value.origin_lng * 1000) / 1000 };
+}
 // allowedTypes : liste des types actifs (serveur, qui fait autorité) ; null = format seulement (workflows n8n générés).
 export function serviceInput(value, withOwner = false, allowedTypes = null) {
-  object(value, ['id', 'type', 'amount', 'date', 'description', ...(withOwner ? ['driver_email'] : [])]);
+  object(value, ['id', 'type', 'amount', 'date', 'description', 'origin_lat', 'origin_lng', ...(withOwner ? ['driver_email'] : [])]);
   // id facultatif, généré par l'application (UUID v4) : rend l'envoi rejouable sans doublon après une coupure réseau.
   const id = value.id === undefined ? undefined : serviceId(value.id);
   if (allowedTypes ? !allowedTypes.includes(value.type) : (typeof value.type !== 'string' || typeName(value.type) !== value.type)) throw new Error('Type invalide ou archivé.');
   if (typeof value.amount !== 'number' || !Number.isFinite(value.amount) || value.amount <= 0 || value.amount > 10000) throw new Error('Montant entre 0 et 10 000 $ requis.');
   if (typeof value.date !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value.date) || !Number.isFinite(Date.parse(value.date)) || new Date(value.date).toISOString().replace('.000Z','Z') !== value.date.replace('.000Z','Z')) throw new Error('Date ISO UTC valide requise.');
-  return { ...(id ? { id } : {}), type: value.type, amount: value.amount, date: value.date, description: text(value.description ?? '', 500, false), ...(withOwner ? { driver_email: email(value.driver_email) } : {}) };
+  return { ...(id ? { id } : {}), type: value.type, amount: value.amount, date: value.date, description: text(value.description ?? '', 500, false), ...origin(value), ...(withOwner ? { driver_email: email(value.driver_email) } : {}) };
 }
 // Assignation planifiée (Calendrier) : type, date/heure, note ; pas de montant (la course n'est pas encore faite).
 export function assignmentInput(value) {

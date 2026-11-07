@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Service, ServiceType, ServiceTypeEntry } from '../types';
 import { backend, servicesToCsv, resolveNewType } from '../services/storage';
-import { Plus, Trash2, Search, Filter, X, Calendar, DollarSign, Type, Download, FileText, CloudOff } from 'lucide-react';
+import { Plus, Trash2, Search, Filter, X, Calendar, DollarSign, Type, Download, FileText, CloudOff, Clock, MapPin } from 'lucide-react';
 import { formatDate } from '../utils/date';
 import { buildReportPdf } from '../utils/reportPdf';
 import { dayKey } from '../utils/stats';
+import { currentOrigin, Origin } from '../utils/geo';
 
 interface ServicesProps {
   services: Service[];
@@ -20,6 +21,8 @@ interface ServicesProps {
 }
 
 const OTHER = '__autre__';
+/** Heure locale actuelle au format HH:MM (valeur par défaut du champ Heure). */
+const nowTime = () => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 
 const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onServiceDeleted, autoOpenForm, onFormOpened, serviceTypes, onTypeCreated }) => {
@@ -34,7 +37,8 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
 
   const openModal = () => {
     triggerRef.current = document.activeElement as HTMLElement | null;
-    setFormData(f => activeTypes.includes(f.type) ? f : { ...f, type: defaultType });
+    setFormData(f => ({ ...(activeTypes.includes(f.type) ? f : { ...f, type: defaultType }), date: new Date().toLocaleDateString('en-CA'), time: nowTime() }));
+    setLocate({ on: false, state: 'idle' });
     setIsModalOpen(true);
   };
   const closeModal = () => {
@@ -61,6 +65,15 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
   }, [isModalOpen]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // « Localiser l'appel » : case à cocher (consentement par course). La position est prise au moment où l'on coche
+  // (cochez à la prise en charge du client), arrondie à ≈ 100 m, et n'est enregistrée qu'avec cette course.
+  const [locate, setLocate] = useState<{ on: boolean; state: 'idle' | 'loading' | 'ok' | 'error'; origin?: Origin; message?: string }>({ on: false, state: 'idle' });
+  const toggleLocate = async (on: boolean) => {
+    if (!on) { setLocate({ on: false, state: 'idle' }); return; }
+    setLocate({ on: true, state: 'loading' });
+    try { const origin = await currentOrigin(); setLocate({ on: true, state: 'ok', origin }); }
+    catch (err) { setLocate({ on: true, state: 'error', message: err instanceof Error ? err.message : 'Position introuvable.' }); }
+  };
   // « Autre » : champ pour saisir un nouveau type de service
   const [otherOpen, setOtherOpen] = useState(false);
   const [otherName, setOtherName] = useState('');
@@ -88,6 +101,7 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
     type: defaultType as ServiceType,
     amount: '',
     date: new Date().toLocaleDateString('en-CA'),
+    time: nowTime(),
     description: ''
   });
 
@@ -102,17 +116,21 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
       if (!added) return;
       type = added;
     }
+    if (locate.on && locate.state === 'loading') { setError('Localisation en cours : patientez un instant.'); return; }
+    if (locate.on && locate.state !== 'ok') { setError('Position non obtenue : réessayez en recochant la case, ou décochez-la.'); return; }
     setLoading(true);
     try {
       await backend.addService({
         type,
         amount: parseFloat(formData.amount),
-        date: new Date(formData.date + 'T12:00:00').toISOString(),
-        description: formData.description
+        date: new Date(`${formData.date}T${formData.time || '12:00'}:00`).toISOString(),
+        description: formData.description,
+        ...(locate.on && locate.origin ? locate.origin : {})
       });
       onServiceAdded();
       closeModal();
-      setFormData({ type: defaultType, amount: '', date: new Date().toLocaleDateString('en-CA'), description: '' });
+      setFormData({ type: defaultType, amount: '', date: new Date().toLocaleDateString('en-CA'), time: nowTime(), description: '' });
+      setLocate({ on: false, state: 'idle' });
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Ajout impossible.');
     } finally {
@@ -437,6 +455,42 @@ const Services: React.FC<ServicesProps> = ({ services, onServiceAdded, onService
                                     style={{ colorScheme: 'dark' }}
                                 />
                             </div>
+                        </div>
+
+                        <div className="bg-white/5 p-4 rounded-2xl border border-white/5 focus-within:border-red-500/50 transition-colors">
+                            <label htmlFor="service-time" className="block text-xs font-bold text-slate-400 uppercase mb-1">Heure</label>
+                            <div className="flex items-center gap-3 text-white">
+                                <Clock size={18} className="text-slate-500" />
+                                <input
+                                    id="service-time" type="time" required
+                                    className="w-full bg-transparent border-none focus:ring-0 p-0 text-white font-medium outline-none"
+                                    value={formData.time}
+                                    onInvalid={(e) => e.currentTarget.setCustomValidity('Indiquez l’heure de la course.')}
+                                    onChange={(e) => { e.currentTarget.setCustomValidity(''); setFormData({...formData, time: e.target.value}); }}
+                                    style={{ colorScheme: 'dark' }}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                            <label htmlFor="service-locate" className="flex items-start gap-3 text-white cursor-pointer">
+                                <input id="service-locate" type="checkbox" className="mt-1 h-5 w-5 accent-red-600"
+                                    checked={locate.on} aria-describedby="service-locate-hint"
+                                    onChange={(e) => toggleLocate(e.target.checked)} />
+                                <span className="flex-1">
+                                    <span className="flex items-center gap-2 font-medium"><MapPin size={18} className="text-slate-500" aria-hidden="true" /> Localiser l’origine de l’appel</span>
+                                    <span id="service-locate-hint" className="block mt-1 text-xs text-slate-400">
+                                        Cochez à la prise en charge : la position du téléphone est arrondie à environ 100 m et sert à recommander la zone d’appel probable selon l’heure et la période. Elle n’est enregistrée qu’avec cette course.
+                                    </span>
+                                </span>
+                            </label>
+                            {locate.on && (
+                                <p role="status" aria-live="polite" className={`mt-3 text-xs ${locate.state === 'error' ? 'text-red-300' : locate.state === 'ok' ? 'text-emerald-300' : 'text-slate-300'}`}>
+                                    {locate.state === 'loading' && 'Localisation en cours…'}
+                                    {locate.state === 'ok' && 'Position enregistrée pour cette course.'}
+                                    {locate.state === 'error' && locate.message}
+                                </p>
+                            )}
                         </div>
 
                         <div className="bg-white/5 p-4 rounded-2xl border border-white/5 focus-within:border-red-500/50 transition-colors">
