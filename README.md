@@ -16,6 +16,8 @@ L'APK n'embarque aucun secret : il affiche le site hébergé, et c'est le serveu
 
 Entretien quotidien (cron ou minuterie systemd) : `node server/sqlite-sync.mjs` — rattrapage (copie toute course de n8n absente ou modifiée dans SQLite ; sert aussi à copier l'historique existant lors de la première exécution) puis sauvegarde datée `rides-AAAAMMJJ.db` dans `SQLITE_BACKUP_DIR` (les `SQLITE_BACKUP_KEEP` derniers, 14 par défaut). **Fenêtre glissante n8n (facultative, `N8N_RETENTION_DAYS`, minimum 7, désactivée par défaut).** Avec par exemple `35`, la tâche quotidienne retire de n8n les courses plus vieilles que 35 jours, mais seulement après la sauvegarde du jour et seulement celles dont la copie SQLite est identique (identifiant, date, montant, chauffeur). Pour le chauffeur, rien ne change : la liste des courses fusionne n8n (récent) et SQLite (ancien), et les suppressions touchent les deux. Pour désactiver : retirer la variable ; les courses déjà retirées de n8n restent dans SQLite.
 
+**Journal de répartition DataTaxi (table `dispatch_events`, même fichier SQLite).** L'application DataTaxi (lecture du journal Fraxion sur la tablette) peut envoyer ses lignes directement au serveur : définir `DATATAXI_TOKEN` (24 caractères ou plus, propre à cette route) avec `SQLITE_PATH`, puis dans DataTaxi mettre l'adresse `https://taximanager.partageons.net/api/datataxi/ingest` et ce jeton (même corps JSON qu'avec n8n ; « remettre à zéro » renvoie tout le journal de la tablette, sans doublon car la clé est `trip_id`). Un lot contenant une ligne invalide est refusé en entier. **Historique existant :** exporter l'onglet voulu du Google Sheet en CSV (Fichier › Télécharger), le copier sur le VPS, puis `SQLITE_PATH=… npm run datataxi:import -- fichier.csv --dry-run` et sans `--dry-run`. Sans correction ni valeur inventée : un champ non décodé reste vide. Les numéros de véhicule ne sont jamais affichés dans l'application ; seuls des agrégats par zone avec un seuil minimum le seront. La table est dans le même fichier : la sauvegarde quotidienne la couvre.
+
 **Le dossier de sauvegarde est sur le même VPS : copiez-le chaque jour hors du VPS (rclone, rsync ou instantané Hostinger), sinon la perte du serveur emporte aussi les sauvegardes.** Fichier en permissions 600, dans un dossier hors de `dist/`.
 
 
@@ -65,6 +67,7 @@ Le script installe Node 22, nginx et certbot, l'application dans `/opt/taximanag
 | `N8N_TOKEN` | Valeur de l'identifiant Header Auth TM. |
 | `HMAC_SECRET` | Clé des empreintes HMAC (IP, identifiants) dans n8n, générée par `install.sh`. À défaut, `N8N_TOKEN` est utilisé. |
 | `N8N_TOKEN_HEADER`, `N8N_PREFIX` | Facultatifs : `X-DrivePilot-Token` et `taximanager-tm` par défaut. |
+| `DATATAXI_TOKEN` | Facultatif : jeton de la route `/api/datataxi/ingest` (24 caractères ou plus). Exige `SQLITE_PATH`. Sans lui, la route répond 404. |
 | `N8N_RETENTION_DAYS` | Facultatif : fenêtre glissante dans n8n (voir Données). Exige `SQLITE_BACKUP_DIR`. |
 | `CHAT_DAILY_LIMIT` | Facultatif : demandes à l'assistant par chauffeur et par jour (UTC), 150 par défaut. |
 | `CHAT_DAILY_GLOBAL` | Facultatif : demandes à l'assistant par jour pour tous les comptes, 3000 par défaut. |
