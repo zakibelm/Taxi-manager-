@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Politique de confidentialité — Taxi Manager</title>
+<meta name="description" content="Politique de confidentialité et suppression de compte de l'application Taxi Manager.">
+<style>
+  :root { --text:#0f172a; --muted:#475569; --line:#e2e8f0; --accent:#dc2626; --bg:#f8fafc; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--text); background:var(--bg); }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:20px; padding:28px 24px; }
+  h1 { font-size:1.7rem; margin:0 0 4px; }
+  h2 { font-size:1.15rem; margin:32px 0 8px; padding-top:8px; border-top:1px solid var(--line); }
+  p, li { color:var(--text); }
+  .muted { color:var(--muted); font-size:.92rem; }
+  ul { padding-left: 1.2rem; }
+  a { color: var(--accent); }
+  table { width:100%; border-collapse:collapse; font-size:.95rem; margin:8px 0; }
+  th, td { text-align:left; vertical-align:top; padding:8px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; }
+  .box { background:#fef2f2; border:1px solid #fecaca; border-radius:14px; padding:14px 16px; }
+  .en { margin-top:40px; }
+</style>
+</head>
+<body>
+<main>
+<div class="card">
+  <h1>Politique de confidentialité — Taxi Manager</h1>
+  <p class="muted">Dernière mise à jour : 7 novembre 2026</p>
+
+  <p>Taxi Manager est une application (web et Android) qui permet aux chauffeurs de taxi d'enregistrer leurs courses, de planifier leurs assignations et de suivre leurs revenus. Cette politique explique quels renseignements personnels nous recueillons, pourquoi, et comment exercer vos droits, conformément à la <em>Loi sur la protection des renseignements personnels dans le secteur privé</em> du Québec (Loi 25) et à la LPRPDE.</p>
+
+  <h2>1. Responsable de la protection des renseignements personnels</h2>
+  <p>Zakaria Belmeddah, développeur de Taxi Manager (Repentigny, Québec, Canada)<br>
+  Courriel : <a href="mailto:zakibelm66@gmail.com">zakibelm66@gmail.com</a></p>
+
+  <h2>2. Renseignements recueillis et utilisation</h2>
+  <table>
+    <tr><th>Renseignement</th><th>Pourquoi</th></tr>
+    <tr><td>Nom et adresse courriel</td><td>Créer et sécuriser votre compte, vous envoyer les liens de confirmation, de réinitialisation du mot de passe et les rappels d'assignations.</td></tr>
+    <tr><td>Mot de passe</td><td>Connexion. Il n'est jamais conservé en clair : seule une empreinte chiffrée (scrypt) est enregistrée.</td></tr>
+    <tr><td>Courses : type de service, montant, date et heure, note</td><td>Historique, tableau de bord, calcul des taxes (TPS, TVQ, SEV), exports CSV et PDF.</td></tr>
+    <tr><td>Assignations planifiées : type, date et heure, note</td><td>Calendrier et rappels par courriel 24 h, 12 h et 1 h avant.</td></tr>
+    <tr><td>Sécurité : cookie de session, adresse IP et identifiant de connexion</td><td>Maintenir la connexion (session de 8 h) et bloquer les tentatives de connexion abusives. L'adresse IP et l'identifiant sont conservés uniquement sous forme d'empreinte (HMAC), jamais en clair.</td></tr>
+  </table>
+  <p><strong>Profil du chauffeur</strong> (prénom, nom, numéro de permis, téléphone, numéro du véhicule) : ces renseignements restent <strong>uniquement sur votre appareil</strong> et ne sont pas envoyés à nos serveurs.</p>
+  <p><strong>Assistant IA</strong> : vos questions sont transmises à un fournisseur de modèle de langage pour générer la réponse. Si vous le choisissez, des statistiques de vos courses (montants, dates, types) l'accompagnent. L'application refuse l'envoi de messages contenant des renseignements personnels (courriel, téléphone, etc.).</p>
+  <p>Nous ne vendons pas vos renseignements, n'affichons pas de publicité et n'utilisons aucun traceur publicitaire ni outil d'analyse tiers.</p>
+
+  <h2>3. Hébergement et communication à des tiers</h2>
+  <ul>
+    <li><strong>Serveur privé (VPS)</strong> loué auprès de Hostinger, qui héberge l'application et la plateforme d'automatisation n8n où sont stockées les données (comptes, courses, assignations).</li>
+    <li><strong>Envoi de courriels</strong> : serveur SMTP (adresse d'envoi noreply@partageons.net).</li>
+    <li><strong>Assistant IA</strong> : fournisseurs de modèles de langage (OpenRouter ou passerelle équivalente), uniquement pour les questions posées à l'assistant.</li>
+  </ul>
+  <p>Ces fournisseurs peuvent traiter les données à l'extérieur du Québec. Nous ne leur communiquons que ce qui est nécessaire au service, et nous avons évalué que les protections offertes sont adéquates.</p>
+
+  <h2>4. Hors connexion</h2>
+  <p>Une course saisie sans réseau est conservée temporairement sur votre appareil, puis envoyée automatiquement au retour de la connexion. Ces données locales sont effacées à la déconnexion.</p>
+
+  <h2>5. Conservation</h2>
+  <ul>
+    <li>Compte, courses et assignations : tant que votre compte est actif. Une assignation est supprimée dès qu'elle est terminée ou retirée.</li>
+    <li>Liens de confirmation ou de réinitialisation : 24 h ou 1 h, puis supprimés.</li>
+    <li>Sessions : 8 h.</li>
+    <li>Après une demande de suppression : effacement complet dans un délai de 30 jours.</li>
+  </ul>
+
+  <h2>6. Sécurité</h2>
+  <p>Connexions chiffrées (HTTPS), mots de passe stockés sous forme d'empreinte, accès aux données restreint par compte (un chauffeur ne voit que ses propres données), limitation des tentatives de connexion et aucun secret embarqué dans l'application Android.</p>
+
+  <h2>7. Vos droits</h2>
+  <p>Vous pouvez demander l'accès à vos renseignements, leur rectification, leur suppression ou leur portabilité (l'export CSV est déjà disponible dans l'application), et retirer votre consentement. Écrivez à <a href="mailto:zakibelm66@gmail.com">zakibelm66@gmail.com</a> : nous répondons dans un délai de 30 jours. Vous pouvez aussi porter plainte auprès de la <a href="https://www.cai.gouv.qc.ca/" rel="noopener">Commission d'accès à l'information du Québec</a>.</p>
+
+  <h2 id="suppression">8. Supprimer votre compte et vos données</h2>
+  <div class="box">
+    <p style="margin-top:0">Pour supprimer votre compte Taxi Manager et toutes les données associées :</p>
+    <ol>
+      <li>(Facultatif) Exportez d'abord vos courses : <em>Mes Services → Exporter (CSV)</em>.</li>
+      <li>Écrivez à <a href="mailto:zakibelm66@gmail.com?subject=Suppression%20de%20compte%20Taxi%20Manager">zakibelm66@gmail.com</a> <strong>depuis l'adresse de votre compte</strong>, avec l'objet « Suppression de compte Taxi Manager ».</li>
+    </ol>
+    <p style="margin-bottom:0">Sont supprimés : le compte (nom, courriel, empreinte du mot de passe), toutes les courses, toutes les assignations et les sessions. Les empreintes de sécurité des tentatives de connexion sont effacées automatiquement après expiration. Délai : 30 jours au maximum, avec une confirmation par courriel. Le profil enregistré sur votre appareil s'efface en désinstallant l'application.</p>
+  </div>
+
+  <h2>9. Âge</h2>
+  <p>Taxi Manager s'adresse aux chauffeurs de taxi adultes. Elle n'est pas destinée aux personnes de moins de 18 ans.</p>
+
+  <h2>10. Modifications</h2>
+  <p>Toute modification de cette politique sera publiée sur cette page, avec la date de mise à jour.</p>
+
+  <section class="en" lang="en">
+    <h2>English summary</h2>
+    <p>Taxi Manager collects your name, email, a hashed password, your rides (service type, amount, date, note) and planned assignments, plus hashed security data (IP and login identifier) to protect your account. Your driver profile (name, licence and vehicle numbers, phone) stays on your device only. Data is hosted on a private server (Hostinger VPS); emails are sent through SMTP; AI assistant questions are sent to a language-model provider. No data is sold, no ads, no third-party analytics. To delete your account and all associated data, email <a href="mailto:zakibelm66@gmail.com?subject=Taxi%20Manager%20account%20deletion">zakibelm66@gmail.com</a> from your account's address; deletion is completed within 30 days. Contact: Zakaria Belmeddah, zakibelm66@gmail.com.</p>
+  </section>
+</div>
+<p class="muted" style="text-align:center;margin-top:20px">© Créé par zakibelm 2026</p>
+</main>
+</body>
+</html>
