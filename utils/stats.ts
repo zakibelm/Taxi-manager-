@@ -24,11 +24,28 @@ export function monthRange(today: Date = new Date()): { start: string; end: stri
 export const inRange = (rows: Service[], start: string, end: string): Service[] =>
   rows.filter(s => { const k = dayKey(s.date); return k >= start && k <= end; });
 
+/** Taux du Québec et frais SEV par course (Revenu Québec). Un seul endroit à modifier si les taux changent. */
+export const TAX_RATES = { tps: 0.05, tvq: 0.09975, sevPerRide: 0.99 };
+
+export interface TaxSummary { tps: number; tvq: number; sev: number; totalDue: number; net: number }
+
+const cents = (n: number) => Math.round(n * 100) / 100;
+
+/** Cumul TPS, TVQ et SEV : les montants saisis sont taxes incluses (ce que paie le client),
+ *  la TPS et la TVQ en sont donc extraites ; le SEV vaut 0,99 $ par course. */
+export function taxSummary(totalTaxesIncluded: number, rides: number, rates = TAX_RATES): TaxSummary {
+  const base = totalTaxesIncluded / (1 + rates.tps + rates.tvq);
+  const tps = cents(base * rates.tps), tvq = cents(base * rates.tvq), sev = cents(rides * rates.sevPerRide);
+  const totalDue = cents(tps + tvq + sev);
+  return { tps, tvq, sev, totalDue, net: cents(totalTaxesIncluded - totalDue) };
+}
+
 export interface Summary {
   total: number; count: number; average: number;
   best: { day: string; amount: number } | null;
   byType: { type: string; count: number; amount: number }[];
   series: { label: string; amount: number; count: number }[];
+  taxes: TaxSummary;
 }
 
 const daysBetween = (start: string, end: string): number =>
@@ -54,7 +71,7 @@ export function summarize(rows: Service[], start: string, end: string): Summary 
     for (const [k, v] of perDay) { const m = k.slice(0, 7); const x = perMonth.get(m) ?? { amount: 0, count: 0 }; x.amount += v.amount; x.count += v.count; perMonth.set(m, x); }
     for (const m of [...perMonth.keys()].sort()) { const x = perMonth.get(m)!; series.push({ label: m, amount: Math.round(x.amount * 100) / 100, count: x.count }); }
   }
-  return { total, count: inside.length, average: inside.length ? Math.round((total / inside.length) * 100) / 100 : 0, best, byType, series };
+  return { taxes: taxSummary(total, inside.length), total, count: inside.length, average: inside.length ? Math.round((total / inside.length) * 100) / 100 : 0, best, byType, series };
 }
 
 /** Période précédente de même durée, immédiatement avant `start`. */

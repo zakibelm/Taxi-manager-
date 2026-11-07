@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { monthRange, weekRange, summarize, previousRange, variation, monthGrid, inRange } from './stats.ts';
+import { taxSummary, monthRange, weekRange, summarize, previousRange, variation, monthGrid, inRange } from './stats.ts';
 
 const svc = (date, amount, type = 'A') => ({ id: date + amount, driver_email: 'a@b.c', type, amount, date: date + 'T12:00:00', created_at: '', updated_at: '' });
 
@@ -37,4 +37,12 @@ test('grille du mois : lundi en premier, cases vides hors mois', () => {
 test('monthRange : du 1er au dernier jour du mois (février bissextile inclus)', () => {
   assert.deepEqual(monthRange(new Date(2026, 10, 6)), { start: '2026-11-01', end: '2026-11-30' });
   assert.deepEqual(monthRange(new Date(2028, 1, 15)), { start: '2028-02-01', end: '2028-02-29' });
+});
+
+test('cumul TPS, TVQ (extraites d’un montant taxes incluses) et SEV 0,99 $ par course', () => {
+  const t = taxSummary(114.975, 3);
+  assert.equal(t.tps, 5); assert.equal(t.tvq, 9.98); assert.equal(t.sev, 2.97);
+  assert.equal(t.totalDue, 17.95); assert.equal(t.net, 97.03);
+  assert.deepEqual(taxSummary(0, 0), { tps: 0, tvq: 0, sev: 0, totalDue: 0, net: 0 });
+  assert.equal(summarize([svc('2026-11-02', 50), svc('2026-11-03', 64.975)], '2026-11-02', '2026-11-08').taxes.sev, 1.98);
 });
