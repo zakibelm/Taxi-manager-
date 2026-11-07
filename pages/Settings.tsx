@@ -108,5 +108,13 @@ export default function Settings({ serviceTypes, onServiceTypesChange, canManage
       <button className="bg-red-600 text-white rounded-xl px-5 py-3" type="submit">Enregistrer</button>
       {saved && <p role="status">Préférence enregistrée.</p>}
     </form>
+    <section aria-labelledby="privacy-title" className="bg-white rounded-3xl p-6 space-y-2">
+      <h3 id="privacy-title" className="text-lg font-bold text-slate-900">Confidentialité</h3>
+      <p className="text-slate-600 text-sm">Quelles données sont conservées, pourquoi, et comment les supprimer.</p>
+      <div className="flex flex-wrap gap-4 text-sm font-medium">
+        <a href="/confidentialite/" className="text-red-600 hover:text-red-700 underline">Politique de confidentialité</a>
+        <a href="/confidentialite/#suppression" className="text-red-600 hover:text-red-700 underline">Supprimer mon compte</a>
+      </div>
+    </section>
   </div>;
 }
