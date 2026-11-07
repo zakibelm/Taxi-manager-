@@ -1,4 +1,4 @@
-import type { Service, ServiceTypeEntry, AIConversation, UserSession, UserSettings } from '../types.ts';
+import type { Assignment, Service, ServiceTypeEntry, AIConversation, UserSession, UserSettings } from '../types.ts';
 
 
 
@@ -6,6 +6,7 @@ const DEMO_SERVICES = 'taximanager_demo_services';
 
 const DEMO_CHAT = 'taximanager_demo_chat';
 const DEMO_TYPES = 'taximanager_demo_types';
+const DEMO_ASSIGNMENTS = 'taximanager_demo_assignments';
 export const DEFAULT_SERVICE_TYPES = ['Régulier', 'TCT', 'Olymel', 'Bombardier', 'Handami', 'James Miron'];
 const TYPE_NAME = /^[\p{L}\p{N}][\p{L}\p{N} '&.\/-]*$/u;
 /** Même règle que le serveur : 1 à 40 caractères, lettres, chiffres, espaces et ' & . / - */
@@ -231,6 +232,29 @@ class BackendService {
 
     localStorage.setItem(DEMO_SERVICES, JSON.stringify(this.demoRows().filter(s => s.id !== id)));
 
+  }
+
+  // --- Assignations planifiées (Calendrier) : en ligne uniquement ; en démo, gardées sur l'appareil ---
+  private demoAssignments(): Assignment[] {
+    try { const rows = JSON.parse(localStorage.getItem(DEMO_ASSIGNMENTS) || '[]'); return Array.isArray(rows) ? rows : []; } catch { return []; }
+  }
+  async getAssignments(): Promise<Assignment[]> {
+    if (this.demo) return this.demoAssignments();
+    return (await this.api('/api/assignments')).assignments;
+  }
+  async addAssignment(data: Pick<Assignment, 'type' | 'date' | 'description'>): Promise<Assignment> {
+    const id = crypto.randomUUID();
+    if (!this.demo) {
+      try { return (await this.api('/api/assignments', 'POST', { ...data, id })).assignment; }
+      catch (error) { if (error instanceof OfflineError) throw new Error('Pas de connexion : l’assignation n’a pas été enregistrée. Réessayez avec du réseau.'); throw error; }
+    }
+    const row: Assignment = { ...data, id, driver_email: 'demo@example.test', created_at: new Date().toISOString() };
+    localStorage.setItem(DEMO_ASSIGNMENTS, JSON.stringify([...this.demoAssignments(), row]));
+    return row;
+  }
+  async deleteAssignment(id: string): Promise<void> {
+    if (!this.demo) { await this.api('/api/assignments/' + encodeURIComponent(id), 'DELETE'); return; }
+    localStorage.setItem(DEMO_ASSIGNMENTS, JSON.stringify(this.demoAssignments().filter(a => a.id !== id)));
   }
 
   // --- Types de service (liste fixée sur le serveur ; en démo, modifiable localement) ---
