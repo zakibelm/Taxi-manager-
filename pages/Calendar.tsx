@@ -1,16 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { Service, ServiceTypeEntry } from '../types';
-import { backend } from '../services/storage';
+import { backend, resolveNewType } from '../services/storage';
 import { dayKey, monthGrid } from '../utils/stats';
 
 const money = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 const DAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
-interface CalendarProps { services: Service[]; serviceTypes: ServiceTypeEntry[]; onServiceAdded: () => void; }
+interface CalendarProps { services: Service[]; serviceTypes: ServiceTypeEntry[]; onServiceAdded: () => void; onTypeCreated: (name: string) => void; }
+const OTHER = '__autre__';
 
 /** Calendrier mensuel : total par jour, et saisie d'une course pour le jour choisi. */
-const Calendar: React.FC<CalendarProps> = ({ services, serviceTypes, onServiceAdded }) => {
+const Calendar: React.FC<CalendarProps> = ({ services, serviceTypes, onServiceAdded, onTypeCreated }) => {
   const now = new Date();
   const todayKey = dayKey(now);
   const [year, setYear] = useState(now.getFullYear());
@@ -22,6 +23,15 @@ const Calendar: React.FC<CalendarProps> = ({ services, serviceTypes, onServiceAd
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [otherOpen, setOtherOpen] = useState(false);
+  const [otherName, setOtherName] = useState('');
+  const confirmOther = (): string | null => {
+    try {
+      const name = resolveNewType(otherName, serviceTypes.map(t => t.name));
+      onTypeCreated(name); setType(name); setOtherOpen(false); setOtherName(''); setError('');
+      return name;
+    } catch (err) { setError(err instanceof Error ? err.message : 'Nom invalide.'); return null; }
+  };
 
   const perDay = useMemo(() => {
     const map = new Map<string, { amount: number; count: number; rows: Service[] }>();
@@ -42,11 +52,16 @@ const Calendar: React.FC<CalendarProps> = ({ services, serviceTypes, onServiceAd
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
     const value = parseFloat(amount.replace(',', '.'));
-    if (!chosenType) { setError('Aucun type de service actif. Demandez à l’administrateur d’en ajouter.'); return; }
+    let chosen = chosenType;
+    if (otherOpen) {
+      if (!otherName.trim()) { setError('Entrez le nom du nouveau service ou choisissez un type dans la liste.'); return; }
+      const added = confirmOther(); if (!added) return; chosen = added;
+    }
+    if (!chosen) { setError('Aucun type de service actif. Demandez à l’administrateur d’en ajouter.'); return; }
     if (!Number.isFinite(value) || value <= 0 || value > 10000) { setError('Entrez un montant entre 0,01 $ et 10 000 $.'); return; }
     setSaving(true); setError('');
     try {
-      await backend.addService({ type: chosenType, amount: value, date: new Date(selected + 'T12:00:00').toISOString(), description: note.trim() });
+      await backend.addService({ type: chosen, amount: value, date: new Date(selected + 'T12:00:00').toISOString(), description: note.trim() });
       setAmount(''); setNote(''); onServiceAdded();
     } catch (err) { setError(err instanceof Error ? err.message : 'Ajout impossible.'); }
     finally { setSaving(false); }
@@ -104,10 +119,26 @@ const Calendar: React.FC<CalendarProps> = ({ services, serviceTypes, onServiceAd
         <form onSubmit={add} className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
           {error && <p role="alert" className="md:col-span-4 text-red-700 bg-red-50 rounded-xl p-3 text-sm">{error}</p>}
           <label className="text-xs text-slate-500">Type
-            <select value={chosenType} onChange={e => setType(e.target.value)} className="block w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-slate-800">
+            <select value={otherOpen ? OTHER : chosenType}
+              onChange={e => { if (e.target.value === OTHER) { setOtherOpen(true); return; } setOtherOpen(false); setOtherName(''); setType(e.target.value); }}
+              className="block w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-slate-800">
               {activeTypes.map(t => <option key={t} value={t}>{t}</option>)}
+              <option value={OTHER}>Autre…</option>
             </select>
           </label>
+          {otherOpen && (
+            <div className="md:col-span-4 flex gap-2 items-end">
+              <label className="flex-1 text-xs text-slate-500">Nouveau service
+                <input autoFocus value={otherName} onChange={e => setOtherName(e.target.value)} maxLength={40} placeholder="Ex. Hôpital Pierre-Le Gardeur"
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmOther(); } }}
+                  className="block w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-slate-800" />
+              </label>
+              <button type="button" onClick={() => confirmOther()} disabled={!otherName.trim()}
+                className="bg-red-600 text-white font-medium px-4 py-2.5 rounded-xl disabled:opacity-40">Ajouter</button>
+              <button type="button" onClick={() => { setOtherOpen(false); setOtherName(''); }}
+                className="bg-slate-100 text-slate-700 font-medium px-3 py-2.5 rounded-xl">Annuler</button>
+            </div>
+          )}
           <label className="text-xs text-slate-500">Montant ($ CA)
             <input value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" placeholder="0,00" required
               className="block w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-slate-800" />
