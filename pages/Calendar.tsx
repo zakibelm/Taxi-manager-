@@ -1,16 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Check, Trash2, X } from 'lucide-react';
-import { Assignment, Service, ServiceTypeEntry } from '../types';
+import { Assignment, ServiceTypeEntry } from '../types';
 import { backend, resolveNewType } from '../services/storage';
 import { dayKey, monthGrid } from '../utils/stats';
 
-const money = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 const DAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 const OTHER = '__autre__';
 
 interface CalendarProps {
-  services: Service[];
   /** Assignations planifiées (rappels) : pas encore faites, donc sans montant. */
   assignments: Assignment[];
   serviceTypes: ServiceTypeEntry[];
@@ -19,8 +17,9 @@ interface CalendarProps {
   onTypeCreated: (name: string) => void;
 }
 
-/** Calendrier : planifier les assignations d'un jour (type, date, heure, note) ; « Terminer » les transforme en course avec le montant. */
-const Calendar: React.FC<CalendarProps> = ({ services, assignments, serviceTypes, onServiceAdded, onAssignmentsChanged, onTypeCreated }) => {
+/** Calendrier : uniquement les assignations planifiées (pas l'historique des courses faites, qui est dans Mes Services).
+ *  On planifie aujourd'hui ou plus tard ; « Terminer » transforme l'assignation en course avec le montant. */
+const Calendar: React.FC<CalendarProps> = ({ assignments, serviceTypes, onServiceAdded, onAssignmentsChanged, onTypeCreated }) => {
   const now = new Date();
   const todayKey = dayKey(now);
   const [year, setYear] = useState(now.getFullYear());
@@ -44,15 +43,6 @@ const Calendar: React.FC<CalendarProps> = ({ services, assignments, serviceTypes
     for (const rows of map.values()) rows.sort((x, y) => x.date.localeCompare(y.date));
     return map;
   }, [assignments]);
-  const done = useMemo(() => {
-    const map = new Map<string, { amount: number; rows: Service[] }>();
-    for (const s of services) {
-      const k = dayKey(s.date); const v = map.get(k) ?? { amount: 0, rows: [] };
-      v.amount += s.amount; v.rows.push(s); map.set(k, v);
-    }
-    for (const v of map.values()) v.rows.sort((x, y) => x.date.localeCompare(y.date));
-    return map;
-  }, [services]);
 
   const weeks = monthGrid(year, month);
   const title = new Date(year, month, 1).toLocaleDateString('fr-CA', { month: 'long', year: 'numeric' });
@@ -60,7 +50,7 @@ const Calendar: React.FC<CalendarProps> = ({ services, assignments, serviceTypes
   const selectDay = (k: string) => { setSelected(k); const [y, m] = k.split('-').map(Number); setYear(y); setMonth(m - 1); };
   const goToday = () => selectDay(todayKey);
   const dayPlanned = planned.get(selected) ?? [];
-  const dayDone = done.get(selected);
+  const isPast = selected < todayKey;
   const chosenType = activeTypes.includes(type) ? type : activeTypes[0] ?? '';
 
   const confirmOther = (): string | null => {
@@ -80,6 +70,7 @@ const Calendar: React.FC<CalendarProps> = ({ services, assignments, serviceTypes
     }
     if (!chosen) { setError('Choisissez un type de service.'); return; }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(selected)) { setError('Choisissez une date.'); return; }
+    if (new Date(`${selected}T${time}:00`).getTime() < Date.now() - 60000) { setError('Choisissez une date et une heure à venir.'); return; }
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) { setError('Entrez une heure valide (ex. 14:30).'); return; }
     setSaving(true); setError('');
     try {
@@ -128,16 +119,15 @@ const Calendar: React.FC<CalendarProps> = ({ services, assignments, serviceTypes
               {week.map((k, di) => {
                 if (!k) return <div key={di} />;
                 const p = planned.get(k)?.length ?? 0;
-                const d = done.get(k);
                 const isSel = selected === k;
+                const past = k < todayKey;
                 return (
                   <button key={k} type="button" onClick={() => setSelected(k)} aria-pressed={isSel}
-                    aria-label={`${k}${p ? `, ${p} assignation(s) prévue(s)` : ''}${d ? `, ${d.rows.length} course(s) faite(s)` : ''}`}
+                    aria-label={`${k}${p ? `, ${p} assignation(s) prévue(s)` : ''}`}
                     className={`min-h-[3.5rem] rounded-xl p-1 text-xs flex flex-col items-center justify-start gap-0.5 border transition-colors ${
-                      isSel ? 'bg-red-600 text-white border-red-600' : k === todayKey ? 'border-red-300 bg-red-50 text-slate-900' : 'border-transparent bg-slate-50 hover:bg-slate-100 text-slate-700'}`}>
+                      isSel ? 'bg-red-600 text-white border-red-600' : k === todayKey ? 'border-red-300 bg-red-50 text-slate-900' : past ? 'border-transparent bg-transparent text-slate-300' : 'border-transparent bg-slate-50 hover:bg-slate-100 text-slate-700'}`}>
                     <span className="font-bold">{Number(k.slice(8))}</span>
                     {p > 0 && <span className={`text-[10px] leading-none px-1.5 py-0.5 rounded-full font-bold ${isSel ? 'bg-white text-red-600' : 'bg-blue-600 text-white'}`}>{p} prévue{p > 1 ? 's' : ''}</span>}
-                    {d && <span className={`text-[9px] ${isSel ? 'text-white/80' : 'text-slate-400'}`}>{Math.round(d.amount)} $</span>}
                   </button>
                 );
               })}
@@ -189,20 +179,7 @@ const Calendar: React.FC<CalendarProps> = ({ services, assignments, serviceTypes
           ) : <p className="text-sm text-slate-500">Aucune assignation prévue ce jour-là.</p>}
         </div>
 
-        {dayDone && (
-          <div>
-            <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Courses faites — {dayDone.rows.length}, {money(dayDone.amount)}</h4>
-            <ul className="space-y-1">
-              {dayDone.rows.map(r => (
-                <li key={r.id} className="flex justify-between text-sm text-slate-500 bg-slate-50 rounded-xl px-3 py-2">
-                  <span><span className="tabular-nums mr-2">{hhmm(new Date(r.date))}</span>{r.type}{r.description ? ` · ${r.description}` : ''}{r.pending ? ' (en attente)' : ''}</span>
-                  <span className="font-medium">{money(r.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
+        {isPast ? <p className="pt-4 border-t border-slate-100 text-sm text-slate-500">Jour passé : on ne peut planifier qu’aujourd’hui ou plus tard.</p> : (
         <form onSubmit={plan} className="pt-4 border-t border-slate-100 space-y-3">
           <h4 className="text-sm font-bold text-slate-900">Planifier une assignation</h4>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -228,7 +205,7 @@ const Calendar: React.FC<CalendarProps> = ({ services, assignments, serviceTypes
               </div>
             )}
             <label className="text-xs text-slate-500">Date
-              <input type="date" value={selected} required onChange={e => { if (e.target.value) selectDay(e.target.value); }}
+              <input type="date" value={selected} min={todayKey} required onChange={e => { if (e.target.value) selectDay(e.target.value); }}
                 className="block w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-slate-800" />
             </label>
             <label className="text-xs text-slate-500">Heure
@@ -245,6 +222,7 @@ const Calendar: React.FC<CalendarProps> = ({ services, assignments, serviceTypes
             </button>
           </div>
         </form>
+        )}
       </section>
     </div>
   );
