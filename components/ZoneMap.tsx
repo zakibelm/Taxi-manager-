@@ -48,12 +48,8 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
   const showMap = result.status === 'ok';
 
   // Création de la carte (Leaflet est chargé à la demande : il n'alourdit pas le démarrage de l'application).
+  // La carte s'affiche toujours (vue sur la région de Montréal) ; les cercles s'ajoutent quand il y a assez d'appels localisés.
   useEffect(() => {
-    if (!showMap) {
-      // Le conteneur disparaît quand il n'y a plus de secteur : la carte est détruite pour être recréée plus tard.
-      mapRef.current?.remove(); mapRef.current = null; layerRef.current = null; setReady(false);
-      return;
-    }
     if (!box.current || mapRef.current) return;
     let cancelled = false;
     (async () => {
@@ -71,7 +67,7 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
       } catch { if (!cancelled) setFailed(true); }
     })();
     return () => { cancelled = true; };
-  }, [showMap]);
+  }, []);
 
   // Libération de la carte au démontage.
   useEffect(() => () => { mapRef.current?.remove(); mapRef.current = null; layerRef.current = null; }, []);
@@ -114,7 +110,7 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
         Seulement les {DAYS[initial.day]}s
       </label>
 
-      {!showMap ? (
+      {!showMap && (
         <p className="text-sm text-slate-500">
           {company && remoteError ? remoteError
             : company && !remote ? 'Chargement des prévisions de la compagnie…'
@@ -123,11 +119,12 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
             ? 'Cochez « Localiser l’origine de l’appel » en saisissant vos courses : la carte se remplit au fil de vos appels.'
             : `Pas assez d’appels localisés pour cette période (il en faut au moins ${MIN_SLOT}). Essayez une autre tranche horaire${sameDay ? ' ou décochez « Seulement les ' + DAYS[initial.day] + 's »' : ''}.`}
         </p>
-      ) : (
+      )}
+      {failed
+        ? <p role="alert" className="text-sm text-amber-700">La carte n’a pas pu se charger (connexion requise). La liste ci-dessous reste valable.</p>
+        : <div ref={box} role="img" aria-label="Carte des secteurs d’achalandage" className="h-72 w-full rounded-2xl overflow-hidden border border-slate-100 z-0" />}
+      {showMap && (
         <>
-          {failed
-            ? <p role="alert" className="text-sm text-amber-700">La carte n’a pas pu se charger (connexion requise). La liste ci-dessous reste valable.</p>
-            : <div ref={box} role="img" aria-label="Carte des secteurs d’achalandage" className="h-72 w-full rounded-2xl overflow-hidden border border-slate-100 z-0" />}
           <ul className="space-y-2">
             {result.spots.map((s, i) => {
               const style = LEVEL_STYLE[s.level as keyof typeof LEVEL_STYLE];
