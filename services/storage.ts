@@ -15,6 +15,13 @@ export function normalizeTypeName(value: string): string {
   return name;
 }
 
+/** Type saisi via « Autre » : validé, refuse « Autre » lui-même, et reprend la forme existante si le nom est déjà connu (casse ignorée). */
+export function resolveNewType(value: string, known: string[]): string {
+  const name = normalizeTypeName(value);
+  if (/^autres?$/i.test(name)) throw new Error('Donnez un nom précis au service (pas « Autre »).');
+  return known.find(k => k.toLowerCase() === name.toLowerCase()) ?? name;
+}
+
 const DEFAULT_SETTINGS: UserSettings = { enableRAG: true };
 
 // --- Hors ligne : file d'envoi et dernière liste connue (téléphone du chauffeur uniquement, vidées à la déconnexion) ---
