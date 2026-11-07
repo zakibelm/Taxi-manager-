@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { UserSession } from '../types';
+import CompanySection from '../components/CompanySection';
 import { DriverProfile, loadProfile, saveProfile, validateProfile } from '../utils/profile';
 
 interface ProfileProps { user: UserSession['user']; welcome?: boolean; onSaved: () => void; onSkip?: () => void; }
@@ -29,7 +30,7 @@ const Profile: React.FC<ProfileProps> = ({ user, welcome, onSaved, onSkip }) => 
     <div className="space-y-6 animate-in fade-in duration-500 pb-24 md:pb-0 max-w-xl">
       <div className="px-2">
         <h2 className="text-2xl font-bold text-slate-900">{welcome ? 'Bienvenue, complétez votre profil' : 'Mon profil'}</h2>
-        <p className="text-slate-500 text-sm">Ces informations restent sur cet appareil, liées à {user.email}.</p>
+        <p className="text-slate-500 text-sm">Ces informations restent sur cet appareil, liées à {user.email}. Seule la compagnie d’appartenance, ci-dessous, est enregistrée sur le serveur.</p>
       </div>
       <form onSubmit={submit} className="bg-white rounded-[28px] p-6 shadow-sm border border-slate-100 space-y-4">
         {error && <p role="alert" className="text-red-700 bg-red-50 rounded-xl p-3 text-sm">{error}</p>}
@@ -46,6 +47,7 @@ const Profile: React.FC<ProfileProps> = ({ user, welcome, onSaved, onSkip }) => 
           {welcome && onSkip && <button type="button" onClick={onSkip} className="text-slate-500 font-medium px-4 py-3 hover:text-slate-800">Plus tard</button>}
         </div>
       </form>
+      {!welcome && <CompanySection />}
     </div>
   );
 };

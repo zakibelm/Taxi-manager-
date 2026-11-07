@@ -19,9 +19,12 @@ L'APK n'embarque aucun secret : il affiche le site hébergé, et c'est le serveu
 | `taximanager_sessions_tm` | Sessions (empreinte SHA-256 du cookie, 8 h) | Taxi Manager - Authentification production TM |
 | `taximanager_login_attempts_tm` | Tentatives de connexion (IP et identifiant en empreinte HMAC) | Taxi Manager - Authentification production TM |
 | `taximanager_services_tm` | Courses (dont, facultatif, `origin_lat` et `origin_lng` : origine de l'appel arrondie à ≈ 100 m, case « Localiser l'origine de l'appel ») | Taxi Manager - Courses TM |
+| `taximanager_companies_tm` | Compagnies (liste tenue par l'administrateur : nom, active) | Taxi Manager - Compagnies TM |
+| `taximanager_memberships_tm` | Compagnie d'appartenance de chaque chauffeur : statut (en attente, approuvée, refusée) et partage de ses zones (opt-in) | Taxi Manager - Compagnies TM |
 
 Les 3 workflows TM sont **actifs**. Leurs webhooks sont sous `https://n8n.xtream.space/webhook/taximanager-tm/api/…` et exigent l'identifiant Header Auth **« DrivePilot application - webhook dédié »** (en-tête `X-DrivePilot-Token`) : `N8N_TOKEN` prend sa valeur. Les workflows DrivePilot eux-mêmes ne sont pas utilisés. Pour séparer complètement les deux applications plus tard, il suffira de créer un identifiant dédié avec le même nom d'en-tête et une autre valeur, puis de le brancher sur les 16 webhooks TM.
-Types de service : la liste `SERVICE_TYPES` du serveur, plus ceux ajoutés par un chauffeur avec « Autre… » dans le formulaire de course (enregistrés avec la course, proposés ensuite à ce chauffeur et à l’admin). Les tables `taximanager_service_types_tm` et `taximanager_drivers_tm` existent mais ne sont pas encore utilisées.
+Types de service : la liste `SERVICE_TYPES` du serveur, plus ceux ajoutés par un chauffeur avec « Autre… » dans le formulaire de course (enregistrés avec la course, proposés ensuite à ce chauffeur et à l’admin). **Compagnie d'appartenance** : le chauffeur choisit sa compagnie dans son profil, l'administrateur approuve (Paramètres), et chaque chauffeur décide de partager ou non ses zones. Les prévisions « Ma compagnie » (tableau de bord et assistant IA) sont calculées par le serveur sur les courses des membres approuvés qui partagent, et ne sont publiées qu'en zones agrégées avec au moins 3 chauffeurs distincts (`MIN_DRIVERS` dans `server/companies.mjs`).
+Les tables `taximanager_service_types_tm` et `taximanager_drivers_tm` existent mais ne sont pas encore utilisées.
 
 ## Démarrage
 

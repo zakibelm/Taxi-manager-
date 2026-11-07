@@ -79,3 +79,15 @@ export function createServicesProvider(client) {
   async delete(id, owner) { await client.call('services/delete', { method: 'DELETE', body: { id, driver_email: owner }, unavailable }); }
  };
 }
+
+/** Compagnies et adhésions : workflow « Taxi Manager - Compagnies TM », tables taximanager_companies_tm et taximanager_memberships_tm. */
+export function createCompaniesProvider(client) {
+ const unavailable = 'Le service des compagnies est indisponible.';
+ const rows = (data, key) => { if(!Array.isArray(data[key])) throw new HttpError(502, 'Réponse du service invalide.'); return data[key]; };
+ return {
+  async companies() { return rows(await client.call('companies/all', { unavailable }), 'companies'); },
+  async saveCompany(company) { await client.call('companies/save', { method: 'POST', body: company, unavailable }); return company; },
+  async memberships() { return rows(await client.call('memberships/all', { unavailable }), 'memberships'); },
+  async saveMembership(membership) { await client.call('memberships/save', { method: 'POST', body: membership, unavailable }); return membership; }
+ };
+}

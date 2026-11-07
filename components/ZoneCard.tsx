@@ -8,17 +8,21 @@ const pct = (n: number) => Math.round(n * 100) + ' %';
 
 /** « Où se placer maintenant » : zones d'appel les plus fréquentes dans l'historique localisé,
  *  pour le même jour de la semaine et la même tranche horaire (sinon la tranche seule, sinon tout l'historique). */
-const ZoneCard: React.FC<{ services: Service[] }> = ({ services }) => {
-  const rec = useMemo(() => recommendZones(services), [services]);
+const ZoneCard: React.FC<{ services: Service[]; companyView?: { name: string; status: 'ok' | 'insufficient'; minDrivers: number; contributors: number; recommend?: ReturnType<typeof recommendZones> } | null }> = ({ services, companyView = null }) => {
+  const mine = useMemo(() => recommendZones(services), [services]);
+  const rec = companyView?.recommend ?? mine;
+  const blocked = companyView && companyView.status !== 'ok';
 
   return (
     <section aria-labelledby="zones-title" className="bg-white rounded-[28px] p-6 shadow-sm border border-slate-100 space-y-4">
       <div>
-        <h3 id="zones-title" className="font-bold text-slate-900 flex items-center gap-2"><MapPin size={18} className="text-red-600" aria-hidden="true" /> Zone d’appel probable</h3>
+        <h3 id="zones-title" className="font-bold text-slate-900 flex items-center gap-2"><MapPin size={18} className="text-red-600" aria-hidden="true" /> Zone d’appel probable{companyView ? ` · ${companyView.name}` : ''}</h3>
         <p className="text-xs text-slate-500 mt-1">Maintenant : {rec.day}, {rec.slot.toLowerCase()}</p>
       </div>
 
-      {rec.status !== 'ok' ? (
+      {blocked ? (
+        <p className="text-sm text-slate-500">Les prévisions de la compagnie s’afficheront dès que {companyView.minDrivers} chauffeurs au moins partageront leurs zones (actuellement {companyView.contributors}).</p>
+      ) : rec.status !== 'ok' ? (
         <p className="text-sm text-slate-500">
           {rec.located === 0
             ? 'Cochez « Localiser l’origine de l’appel » en saisissant vos courses : après quelques courses, l’application vous recommandera où vous placer selon l’heure et la période.'
@@ -43,7 +47,7 @@ const ZoneCard: React.FC<{ services: Service[] }> = ({ services }) => {
             ))}
           </ol>
           <p className="text-xs text-slate-400">
-            Calculé sur {rec.sample} course{rec.sample > 1 ? 's' : ''} : {basisLabel(rec)}. Plus vous localisez de courses, plus la recommandation est fiable.
+            Calculé sur {rec.sample} course{rec.sample > 1 ? 's' : ''}{companyView ? ' de la compagnie' : ''} : {basisLabel(rec)}. Plus vous localisez de courses, plus la recommandation est fiable.
           </p>
         </>
       )}

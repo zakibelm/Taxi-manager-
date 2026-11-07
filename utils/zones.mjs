@@ -43,15 +43,20 @@ export function zoneOf(lat, lng) {
   return { id: `${i}:${j}`, lat: round((i + 0.5) * ZONE_STEP, 3), lng: round((j + 0.5) * ZONE_STEP, 3) };
 }
 
-function rank(rows, k) {
+/** Nombre de chauffeurs distincts (courriel) dans des courses. Sert à la règle « minimum N chauffeurs » du mode compagnie. */
+export const driverCount = rows => new Set(rows.map(s => s.driver_email).filter(Boolean)).size;
+
+function rank(rows, k, minDrivers = 0) {
   const zones = new Map();
   for (const s of rows) {
     const z = zoneOf(s.origin_lat, s.origin_lng);
-    const v = zones.get(z.id) ?? { zone: z, count: 0, amount: 0, types: new Map() };
+    const v = zones.get(z.id) ?? { zone: z, count: 0, amount: 0, types: new Map(), drivers: new Set() };
+    v.drivers.add(s.driver_email);
     v.count++; v.amount += s.amount; v.types.set(s.type, (v.types.get(s.type) ?? 0) + 1);
     zones.set(z.id, v);
   }
   return [...zones.values()]
+    .filter(v => v.drivers.size >= minDrivers)
     .sort((a, b) => b.count - a.count || b.amount - a.amount)
     .slice(0, k)
     .map(v => {
@@ -73,7 +78,7 @@ function rank(rows, k) {
  * @param {Date} [now]
  * @param {number} [k] nombre de zones renvoyées
  */
-export function recommendZones(services, now = new Date(), k = 3) {
+export function recommendZones(services, now = new Date(), k = 3, { minDrivers = 0 } = {}) {
   const located = services.filter(s => hasOrigin(s) && Number.isFinite(s.amount) && s.amount > 0 && Number.isFinite(Date.parse(s.date)));
   const here = localParts(now), slot = slotOf(here.hour);
   const base = { day: DAYS[here.day], slot: slot.label, located: located.length };
@@ -84,7 +89,7 @@ export function recommendZones(services, now = new Date(), k = 3) {
   let basis = 'all', pool = located;
   if (sameDaySlot.length >= MIN_SLOT) { basis = 'day-slot'; pool = sameDaySlot.map(x => x.s); }
   else if (sameSlot.length >= MIN_SLOT) { basis = 'slot'; pool = sameSlot.map(x => x.s); }
-  return { ...base, status: 'ok', basis, sample: pool.length, zones: rank(pool, k) };
+  return { ...base, status: 'ok', basis, sample: pool.length, zones: rank(pool, k, minDrivers) };
 }
 
 /** Texte lisible de la base de calcul. */
@@ -94,14 +99,14 @@ export const basisLabel = (r) => r.basis === 'day-slot' ? `les ${r.day}s, ${r.sl
 
 /** Résumé agrégé pour l'assistant IA : zones probables maintenant + les zones les plus actives par tranche horaire.
  *  Jamais de coordonnée précise de course, de courriel ni de note : seulement des centres de zone de ≈ 1 km. */
-export function zoneDigest(services, now = new Date()) {
-  const now_ = recommendZones(services, now, 3);
+export function zoneDigest(services, now = new Date(), { minDrivers = 0 } = {}) {
+  const now_ = recommendZones(services, now, 3, { minDrivers });
   if (now_.status !== 'ok') return { localisees: now_.located, statut: 'pas assez de courses localisées', minimum: MIN_LOCATED };
   const located = services.filter(s => hasOrigin(s) && Number.isFinite(s.amount) && s.amount > 0 && Number.isFinite(Date.parse(s.date)));
   const parTranche = {};
   for (const slot of SLOTS) {
     const pool = located.filter(s => slotOf(localParts(s.date).hour).id === slot.id);
-    if (pool.length >= MIN_SLOT) parTranche[slot.label] = rank(pool, 2).map(z => ({ zone_centre: [z.lat, z.lng], courses: z.count, montant_moyen: z.averageAmount, type_dominant: z.topType }));
+    if (pool.length >= MIN_SLOT) parTranche[slot.label] = rank(pool, 2, minDrivers).map(z => ({ zone_centre: [z.lat, z.lng], courses: z.count, montant_moyen: z.averageAmount, type_dominant: z.topType }));
   }
   return {
     localisees: now_.located,
@@ -141,12 +146,13 @@ export function locatedRides(services, { slotId = null, day = null } = {}) {
  * ≥ 66 % « forte » (vert), ≥ 33 % « moyenne » (jaune), sinon « faible » (rouge).
  * @returns {{status:'ok'|'insufficient', located:number, spots:Array}}
  */
-export function hotspots(rides, { radiusKm = SPOT_RADIUS_KM, max = MAX_SPOTS } = {}) {
+export function hotspots(rides, { radiusKm = SPOT_RADIUS_KM, max = MAX_SPOTS, minDrivers = 0 } = {}) {
   if (rides.length < MIN_SLOT) return { status: 'insufficient', located: rides.length, needed: MIN_SLOT, spots: [] };
   const cells = new Map();
   for (const s of rides) {
     const z = zoneOf(s.origin_lat, s.origin_lng);
-    const c = cells.get(z.id) ?? { lat: z.lat, lng: z.lng, count: 0, amount: 0, types: new Map() };
+    const c = cells.get(z.id) ?? { lat: z.lat, lng: z.lng, count: 0, amount: 0, types: new Map(), drivers: new Set() };
+    c.drivers.add(s.driver_email);
     c.count++; c.amount += s.amount; c.types.set(s.type, (c.types.get(s.type) ?? 0) + 1);
     cells.set(z.id, c);
   }
@@ -175,12 +181,14 @@ export function hotspots(rides, { radiusKm = SPOT_RADIUS_KM, max = MAX_SPOTS } =
     const types = new Map();
     for (const o of k.members) for (const [t, n] of o.types) types.set(t, (types.get(t) ?? 0) + n);
     const [topType] = [...types].sort((a, b) => b[1] - a[1])[0];
-    return { lat: round(k.lat, 3), lng: round(k.lng, 3), radiusKm, count, share: round(count / rides.length, 2), averageAmount: round(amount / count, 2), topType };
-  }).filter(k => !noisy || k.count >= 2).sort((a, b) => b.count - a.count);
+    const drivers = new Set(k.members.flatMap(o => [...o.drivers]));
+    return { drivers: drivers.size, lat: round(k.lat, 3), lng: round(k.lng, 3), radiusKm, count, share: round(count / rides.length, 2), averageAmount: round(amount / count, 2), topType };
+  }).filter(k => (!noisy || k.count >= 2) && k.drivers >= minDrivers).sort((a, b) => b.count - a.count);
   const top = sized[0]?.count ?? 1;
   const spots = sized.map(k => {
     const ratio = k.count / top;
-    return { ...k, ratio: round(ratio, 2), level: ratio >= 0.66 ? 'forte' : ratio >= 0.33 ? 'moyenne' : 'faible' };
+    const { drivers: _drivers, ...pub } = k; // le nombre de chauffeurs sert à la règle de minimum, il n'est pas publié
+    return { ...pub, ratio: round(ratio, 2), level: ratio >= 0.66 ? 'forte' : ratio >= 0.33 ? 'moyenne' : 'faible' };
   });
   return { status: spots.length ? 'ok' : 'insufficient', located: rides.length, needed: MIN_SLOT, spots };
 }
