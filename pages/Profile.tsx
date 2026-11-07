@@ -47,7 +47,7 @@ const Profile: React.FC<ProfileProps> = ({ user, welcome, onSaved, onSkip }) => 
           {welcome && onSkip && <button type="button" onClick={onSkip} className="text-slate-500 font-medium px-4 py-3 hover:text-slate-800">Plus tard</button>}
         </div>
       </form>
-      {!welcome && <CompanySection />}
+      <CompanySection />
     </div>
   );
 };
