@@ -14,6 +14,8 @@ const name = value => { const v = text(value, 60); if(/[\u0000-\u001f\u007f<>]/.
 const iso = now => new Date(now()).toISOString();
 
 export function createCompanyService({ provider, services, now = Date.now }) {
+ const cache = new Map();
+ const CACHE_MS = 5 * 60 * 1000;
  const publicCompany = c => ({ id: c.company_id, name: c.name, active: c.active === true });
  const find = (list, companyId) => list.find(c => c.company_id === companyId);
  const view = (m, companies) => {
@@ -78,8 +80,18 @@ export function createCompanyService({ provider, services, now = Date.now }) {
   async pool(user) {
    const { companies, membership } = await mine(user);
    if(!membership || membership.status !== 'approved') throw new HttpError(403, 'Votre appartenance à une compagnie doit d’abord être approuvée.');
-   const [memberships, rides] = await Promise.all([provider.memberships(), services.list({ role: 'admin', email: 'server' })]);
+   const memberships = await provider.memberships();
    const sharing = new Set(memberships.filter(m => m.company_id === membership.company_id && m.status === 'approved' && m.share === true).map(m => m.driver_email));
+   // Avec la copie SQLite : lecture locale, limitée aux chauffeurs qui partagent, avec un cache court invalidé à chaque écriture.
+   if(typeof services.ridesFor === 'function') {
+    const key = `${membership.company_id}|${services.version}|${[...sharing].sort().join(',')}`;
+    const hit = cache.get(membership.company_id);
+    if(hit && hit.key === key && now() - hit.at < CACHE_MS) return { company: find(companies, membership.company_id), rides: hit.rides, sharing: sharing.size };
+    const rides = services.ridesFor(sharing);
+    cache.set(membership.company_id, { key, at: now(), rides });
+    return { company: find(companies, membership.company_id), rides, sharing: sharing.size };
+   }
+   const rides = await services.list({ role: 'admin', email: 'server' });
    return { company: find(companies, membership.company_id), rides: rides.filter(s => sharing.has(s.driver_email)), sharing: sharing.size };
   },
   /** Prévisions de la compagnie : zones agrégées seulement, supprimées sous MIN_DRIVERS chauffeurs distincts. */

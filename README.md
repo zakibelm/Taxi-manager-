@@ -10,7 +10,12 @@ APK Android (Capacitor) ──HTTPS──► Serveur Taxi Manager (Node) ──X
 
 L'APK n'embarque aucun secret : il affiche le site hébergé, et c'est le serveur qui détient le jeton n8n et la clé OpenRouter.
 
-## Données (n8n)
+## Données (n8n + copie SQLite)
+
+**Copie SQLite des courses (facultative, `SQLITE_PATH`).** Quand elle est activée, chaque course enregistrée dans n8n est aussitôt copiée dans un fichier SQLite sur le VPS (écriture double : n8n d'abord, SQLite ensuite ; une panne SQLite n'empêche jamais d'enregistrer une course, elle est écrite dans le journal `[sqlite]` et rattrapée la nuit suivante). Les prévisions et la carte « Ma compagnie » sont alors calculées depuis SQLite (cache de 5 min, invalidé à chaque écriture), sans appeler n8n. « Mes courses » reste calculé sur l'appareil. Google Sheets n'est pas dans le chemin des données.
+
+Entretien quotidien (cron ou minuterie systemd) : `node server/sqlite-sync.mjs` — rattrapage (copie toute course de n8n absente ou modifiée dans SQLite ; sert aussi à copier l'historique existant lors de la première exécution) puis sauvegarde datée `rides-AAAAMMJJ.db` dans `SQLITE_BACKUP_DIR` (les `SQLITE_BACKUP_KEEP` derniers, 14 par défaut). **Le dossier de sauvegarde est sur le même VPS : copiez-le chaque jour hors du VPS (rclone, rsync ou instantané Hostinger), sinon la perte du serveur emporte aussi les sauvegardes.** Fichier en permissions 600, dans un dossier hors de `dist/`.
+
 
 | Data Table | Contenu | Workflow |
 |---|---|---|
@@ -58,6 +63,7 @@ Le script installe Node 22, nginx et certbot, l'application dans `/opt/taximanag
 | `N8N_TOKEN` | Valeur de l'identifiant Header Auth TM. |
 | `HMAC_SECRET` | Clé des empreintes HMAC (IP, identifiants) dans n8n, générée par `install.sh`. À défaut, `N8N_TOKEN` est utilisé. |
 | `N8N_TOKEN_HEADER`, `N8N_PREFIX` | Facultatifs : `X-DrivePilot-Token` et `taximanager-tm` par défaut. |
+| `SQLITE_PATH`, `SQLITE_BACKUP_DIR`, `SQLITE_BACKUP_KEEP` | Facultatifs : fichier de la copie SQLite des courses (ex. `/var/lib/taximanager/rides.db`), dossier des sauvegardes quotidiennes et nombre à conserver. Sans `SQLITE_PATH`, le comportement est inchangé (tout dans n8n). |
 | `ADMIN_EMAILS` | Courriels administrateurs (séparés par des virgules) : l'admin voit les courses de tous les chauffeurs. |
 | `ALLOWED_EMAILS` | Chauffeurs autorisés : courriels ou domaines (`@flotte.ca`), séparés par des virgules. Vide : toute adresse confirmée peut s'inscrire (et utiliser l'assistant). Retirer une adresse refuse la connexion et ferme ses sessions. Les admins sont toujours autorisés. **Recommandé en production.** |
 | `MAP_TILE_HOST` | Facultatif : hôte HTTPS des tuiles de la carte du tableau de bord, seule origine externe autorisée par la politique de sécurité (images seulement). Défaut : `https://*.tile.openstreetmap.org` (gratuit, attribution affichée). Pour changer de fournisseur, modifier aussi l'URL dans `utils/mapConfig.ts`. |
