@@ -66,6 +66,8 @@ Le script installe Node 22, nginx et certbot, l'application dans `/opt/taximanag
 | `HMAC_SECRET` | Clé des empreintes HMAC (IP, identifiants) dans n8n, générée par `install.sh`. À défaut, `N8N_TOKEN` est utilisé. |
 | `N8N_TOKEN_HEADER`, `N8N_PREFIX` | Facultatifs : `X-DrivePilot-Token` et `taximanager-tm` par défaut. |
 | `N8N_RETENTION_DAYS` | Facultatif : fenêtre glissante dans n8n (voir Données). Exige `SQLITE_BACKUP_DIR`. |
+| `CHAT_DAILY_LIMIT` | Facultatif : demandes à l'assistant par chauffeur et par jour (UTC), 150 par défaut. |
+| `CHAT_DAILY_GLOBAL` | Facultatif : demandes à l'assistant par jour pour tous les comptes, 3000 par défaut. |
 | `SQLITE_PATH`, `SQLITE_BACKUP_DIR`, `SQLITE_BACKUP_KEEP` | Facultatifs : fichier de la copie SQLite des courses (ex. `/var/lib/taximanager/rides.db`), dossier des sauvegardes quotidiennes et nombre à conserver. Sans `SQLITE_PATH`, le comportement est inchangé (tout dans n8n). |
 | `ADMIN_EMAILS` | Courriels administrateurs (séparés par des virgules) : l'admin voit les courses de tous les chauffeurs. |
 | `ALLOWED_EMAILS` | Chauffeurs autorisés : courriels ou domaines (`@flotte.ca`), séparés par des virgules. Vide : toute adresse confirmée peut s'inscrire (et utiliser l'assistant). Retirer une adresse refuse la connexion et ferme ses sessions. Les admins sont toujours autorisés. **Recommandé en production.** |
