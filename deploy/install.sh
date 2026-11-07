@@ -168,6 +168,13 @@ server {
     listen 80;
     server_name $DOMAIN;
     client_max_body_size 64k;
+    location /api/datataxi/ {   # lots de l'application DataTaxi (300 lignes ≈ 100 ko)
+        client_max_body_size 1m;
+        proxy_pass http://127.0.0.1:$PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
     location / {
         proxy_pass http://127.0.0.1:$PORT;
         proxy_set_header Host \$host;

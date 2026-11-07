@@ -13,11 +13,15 @@ import { createRegistrationMiddleware } from './registration.mjs';
 import { reply } from './http.mjs';
 import { openRideStore } from './sqlite.mjs';
 import { createMirroredServices } from './providers/mirror.mjs';
+import { openDispatchStore } from './dispatch.mjs';
+import { createDatataxiMiddleware } from './datataxi.mjs';
 // Une seule liste ordonnée, partagée par le plugin Vite (dev/preview) et le serveur de production.
 // Toutes les données (comptes, jetons, sessions, tentatives, courses) passent par les workflows n8n « … TM ».
 export function createApiMiddlewares(env, { fetcher = fetch } = {}) {
  const client = createN8nClient(env, fetcher);
  const store = createN8nStore(client, env);
+ // Réception DataTaxi (DATATAXI_TOKEN + SQLITE_PATH) : journal de répartition Fraxion dans la table dispatch_events.
+ const dispatchMiddleware = env.DATATAXI_TOKEN && env.SQLITE_PATH ? [createDatataxiMiddleware({ store: openDispatchStore(env.SQLITE_PATH), env })] : [];
  const auth = createAuthMiddleware({ store, env });
  const registration = createRegistrationMiddleware({ store, auth, env });
  // Copie SQLite des courses (SQLITE_PATH) : active l'écriture double et la lecture locale des prévisions de compagnie.
@@ -32,7 +36,7 @@ export function createApiMiddlewares(env, { fetcher = fetch } = {}) {
   return reply(res, client.configured() ? 200 : 503, { status: client.configured() ? 'ok' : 'n8n non configuré' });
  };
  return [
-  securityHeaders(env), privateFiles, health, registration, auth,
+  securityHeaders(env), privateFiles, health, ...dispatchMiddleware, registration, auth,
   createServicesMiddleware({ getUser: auth.getUser, provider: services, env }),
   createAssignmentsMiddleware({ getUser: auth.getUser, provider: createAssignmentsProvider(client), env }),
   createCompaniesMiddleware({ getUser: auth.getUser, service: companies }),
