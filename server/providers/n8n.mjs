@@ -40,6 +40,24 @@ export function createN8nClient(env = process.env, fetcher = fetch) {
  return { call, configured: () => !!n8nBase(env) };
 }
 
+/** Assignations planifiées : workflow « Taxi Manager - Assignations TM », table taximanager_assignments_tm. */
+export function createAssignmentsProvider(client) {
+ const unavailable = 'Le service des assignations est indisponible.';
+ const rows = data => { if(!Array.isArray(data.assignments)) throw new HttpError(502, 'Réponse du service invalide.'); return data.assignments; };
+ return {
+  async list(user) {
+   const data = user.role === 'admin'
+    ? await client.call('assignments/all', { unavailable })
+    : await client.call('assignments/list', { query: { email: user.email }, unavailable });
+   return rows(data).filter(a => user.role === 'admin' || a.driver_email === user.email);
+  },
+  async create(data, id) {
+   return (await client.call('assignments/create', { method: 'POST', body: { ...data, assignment_id: id || randomUUID() }, unavailable })).assignment;
+  },
+  async delete(id, owner) { await client.call('assignments/delete', { method: 'DELETE', body: { id, driver_email: owner }, unavailable }); }
+ };
+}
+
 /** Courses : workflow « Taxi Manager - Courses TM », table taximanager_services_tm. */
 export function createServicesProvider(client) {
  const unavailable = 'Le service de courses est indisponible. Aucune donnée locale de remplacement.';
