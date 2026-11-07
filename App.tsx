@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { showBannerAd, hideBannerAd } from './utils/ads';
 
 import { ApiError, backend, DEFAULT_SERVICE_TYPES } from './services/storage';
 
@@ -87,6 +88,9 @@ const App: React.FC = () => {
   }, [session]);
 
   // Retour du réseau : envoi des courses saisies hors ligne, puis rechargement.
+  // Bannière publicitaire (APK seulement) : affichée une fois connecté, retirée à la déconnexion.
+  useEffect(() => { if (session) showBannerAd(); else hideBannerAd(); }, [session]);
+
   useEffect(() => {
     if (!session) return;
     const onOnline = () => { refreshServices(); refreshServiceTypes(); refreshAssignments(); };
@@ -293,6 +297,8 @@ const App: React.FC = () => {
                     <footer className="mt-10 pt-4 border-t border-slate-200 text-center text-xs text-slate-400">
                         © Créé par zakibelm 2026 · <a href="/confidentialite/" className="underline hover:text-slate-600">Confidentialité</a>
                     </footer>
+                    {/* Espace sous le contenu égal à la hauteur de la bannière publicitaire (0 hors APK) */}
+                    <div aria-hidden="true" style={{ height: 'var(--ad-h, 0px)' }} />
 
                 </div>
 
