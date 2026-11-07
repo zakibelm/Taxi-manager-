@@ -6,6 +6,7 @@ import { dayKey, monthGrid } from '../utils/stats';
 
 const money = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 const DAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
 interface CalendarProps { services: Service[]; serviceTypes: ServiceTypeEntry[]; onServiceAdded: () => void; onTypeCreated: (name: string) => void; }
 const OTHER = '__autre__';
@@ -21,6 +22,7 @@ const Calendar: React.FC<CalendarProps> = ({ services, serviceTypes, onServiceAd
   const [type, setType] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const [time, setTime] = useState(() => hhmm(new Date()));
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [otherOpen, setOtherOpen] = useState(false);
@@ -59,9 +61,10 @@ const Calendar: React.FC<CalendarProps> = ({ services, serviceTypes, onServiceAd
     }
     if (!chosen) { setError('Aucun type de service actif. Demandez à l’administrateur d’en ajouter.'); return; }
     if (!Number.isFinite(value) || value <= 0 || value > 10000) { setError('Entrez un montant entre 0,01 $ et 10 000 $.'); return; }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) { setError('Entrez une heure valide (ex. 14:30).'); return; }
     setSaving(true); setError('');
     try {
-      await backend.addService({ type: chosen, amount: value, date: new Date(selected + 'T12:00:00').toISOString(), description: note.trim() });
+      await backend.addService({ type: chosen, amount: value, date: new Date(`${selected}T${time}:00`).toISOString(), description: note.trim() });
       setAmount(''); setNote(''); onServiceAdded();
     } catch (err) { setError(err instanceof Error ? err.message : 'Ajout impossible.'); }
     finally { setSaving(false); }
@@ -107,17 +110,17 @@ const Calendar: React.FC<CalendarProps> = ({ services, serviceTypes, onServiceAd
         <h3 id="day-title" className="font-bold text-slate-900">{selected}{day ? ` — ${day.count} course(s), ${money(day.amount)}` : ''}</h3>
         {day ? (
           <ul className="space-y-2">
-            {day.rows.map(r => (
+            {[...day.rows].sort((a, b) => a.date.localeCompare(b.date)).map(r => (
               <li key={r.id} className="flex justify-between text-sm bg-slate-50 rounded-xl px-3 py-2">
-                <span className="text-slate-700">{r.type}{r.description ? ` · ${r.description}` : ''}{r.pending ? ' (en attente)' : ''}</span>
+                <span className="text-slate-700"><span className="font-bold text-slate-900 tabular-nums mr-2">{hhmm(new Date(r.date))}</span>{r.type}{r.description ? ` · ${r.description}` : ''}{r.pending ? ' (en attente)' : ''}</span>
                 <span className="font-bold text-slate-900">{money(r.amount)}</span>
               </li>
             ))}
           </ul>
         ) : <p className="text-sm text-slate-500">Aucune course ce jour-là.</p>}
 
-        <form onSubmit={add} className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
-          {error && <p role="alert" className="md:col-span-4 text-red-700 bg-red-50 rounded-xl p-3 text-sm">{error}</p>}
+        <form onSubmit={add} className="grid grid-cols-1 md:grid-cols-5 gap-3 pt-2 border-t border-slate-100">
+          {error && <p role="alert" className="md:col-span-5 text-red-700 bg-red-50 rounded-xl p-3 text-sm">{error}</p>}
           <label className="text-xs text-slate-500">Type
             <select value={otherOpen ? OTHER : chosenType}
               onChange={e => { if (e.target.value === OTHER) { setOtherOpen(true); return; } setOtherOpen(false); setOtherName(''); setType(e.target.value); }}
@@ -127,7 +130,7 @@ const Calendar: React.FC<CalendarProps> = ({ services, serviceTypes, onServiceAd
             </select>
           </label>
           {otherOpen && (
-            <div className="md:col-span-4 flex gap-2 items-end">
+            <div className="md:col-span-5 flex gap-2 items-end">
               <label className="flex-1 text-xs text-slate-500">Nouveau service
                 <input autoFocus value={otherName} onChange={e => setOtherName(e.target.value)} maxLength={40} placeholder="Ex. Hôpital Pierre-Le Gardeur"
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmOther(); } }}
@@ -139,6 +142,10 @@ const Calendar: React.FC<CalendarProps> = ({ services, serviceTypes, onServiceAd
                 className="bg-slate-100 text-slate-700 font-medium px-3 py-2.5 rounded-xl">Annuler</button>
             </div>
           )}
+          <label className="text-xs text-slate-500">Heure
+            <input type="time" value={time} onChange={e => setTime(e.target.value)} required
+              className="block w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-slate-800" />
+          </label>
           <label className="text-xs text-slate-500">Montant ($ CA)
             <input value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" placeholder="0,00" required
               className="block w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-slate-800" />
