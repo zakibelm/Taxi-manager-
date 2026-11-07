@@ -20,7 +20,7 @@ const Profile: React.FC<ProfileProps> = ({ user, welcome, onSaved, onSkip }) => 
     e.preventDefault();
     const problem = validateProfile(form);
     if (problem) { setError(problem); return; }
-    try { saveProfile(user.email, { ...form, first_name: form.first_name.trim(), last_name: form.last_name.trim(), phone: form.phone.trim(), license_number: form.license_number.trim(), vehicle: form.vehicle.trim() }); }
+    try { saveProfile(user.email, { ...form, first_name: form.first_name.trim(), last_name: form.last_name.trim(), phone: form.phone.trim(), vehicle: form.vehicle.trim() }); }
     catch (err) { setError(err instanceof Error ? err.message : 'Enregistrement impossible.'); return; }
     setError(''); setSaved(true); onSaved();
   };
@@ -30,7 +30,7 @@ const Profile: React.FC<ProfileProps> = ({ user, welcome, onSaved, onSkip }) => 
     <div className="space-y-6 animate-in fade-in duration-500 pb-24 md:pb-0 max-w-xl">
       <div className="px-2">
         <h2 className="text-2xl font-bold text-slate-900">{welcome ? 'Bienvenue, complétez votre profil' : 'Mon profil'}</h2>
-        <p className="text-slate-500 text-sm">Ces informations restent sur cet appareil, liées à {user.email}. Seule la compagnie d’appartenance, ci-dessous, est enregistrée sur le serveur.</p>
+        <p className="text-slate-500 text-sm">Courriel du compte : {user.email}. Ces informations restent sur cet appareil ; seule la compagnie d’appartenance, ci-dessous, est enregistrée sur le serveur. Aucun numéro de permis n’est demandé.</p>
       </div>
       <form onSubmit={submit} className="bg-white rounded-[28px] p-6 shadow-sm border border-slate-100 space-y-4">
         {error && <p role="alert" className="text-red-700 bg-red-50 rounded-xl p-3 text-sm">{error}</p>}
@@ -39,9 +39,8 @@ const Profile: React.FC<ProfileProps> = ({ user, welcome, onSaved, onSkip }) => 
           <label className="text-xs text-slate-500">Prénom *<input value={form.first_name} onChange={set('first_name')} maxLength={100} required autoComplete="given-name" className={field} /></label>
           <label className="text-xs text-slate-500">Nom *<input value={form.last_name} onChange={set('last_name')} maxLength={100} required autoComplete="family-name" className={field} /></label>
         </div>
-        <label className="text-xs text-slate-500 block">Numéro de permis *<input value={form.license_number} onChange={set('license_number')} maxLength={100} required className={field} /></label>
-        <label className="text-xs text-slate-500 block">Téléphone<input value={form.phone} onChange={set('phone')} maxLength={30} inputMode="tel" autoComplete="tel" className={field} /></label>
-        <label className="text-xs text-slate-500 block">Numéro du véhicule<input value={form.vehicle} onChange={set('vehicle')} maxLength={60} className={field} /></label>
+        <label className="text-xs text-slate-500 block">Type de véhicule (facultatif)<input value={form.vehicle} onChange={set('vehicle')} maxLength={60} placeholder="Ex. Berline, minivan, adapté" className={field} /></label>
+        <label className="text-xs text-slate-500 block">Téléphone (facultatif)<input value={form.phone} onChange={set('phone')} maxLength={30} inputMode="tel" autoComplete="tel" className={field} /></label>
         <div className="flex flex-wrap gap-3 pt-2">
           <button type="submit" className="bg-red-600 text-white font-medium px-5 py-3 rounded-2xl hover:bg-red-700">Enregistrer</button>
           {welcome && onSkip && <button type="button" onClick={onSkip} className="text-slate-500 font-medium px-4 py-3 hover:text-slate-800">Plus tard</button>}
