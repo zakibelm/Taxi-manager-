@@ -1,18 +1,28 @@
 import React, { useMemo } from 'react';
-import { Service } from '../types';
+import { Assignment, Service } from '../types';
 import PeriodAnalysis from '../components/PeriodAnalysis';
-import { Car, Clock, Plus, List } from 'lucide-react';
+import { Car, Clock, Plus, List, CalendarClock } from 'lucide-react';
 import { formatDate } from '../utils/date';
 
 interface DashboardProps {
   services: Service[];
+  /** Assignations planifiées (Calendrier) : rappel des prochaines. */
+  assignments?: Assignment[];
   navigateToChat: () => void;
   // Note: These props are passed via App.tsx but we'll use local navigation for simplicity in this demo structure
   onNavigate?: (page: string, options?: { openForm?: boolean }) => void;
   user: { name: string };
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ services, navigateToChat, onNavigate, user }) => {
+const Dashboard: React.FC<DashboardProps> = ({ services, assignments = [], navigateToChat, onNavigate, user }) => {
+  // Rappel : assignations d'aujourd'hui (pas encore passées de plus d'une heure) et de demain.
+  const upcoming = useMemo(() => {
+    const from = Date.now() - 3600000;
+    const end = new Date(); end.setDate(end.getDate() + 2); end.setHours(0, 0, 0, 0);
+    return assignments.filter(a => { const t = Date.parse(a.date); return t >= from && t < end.getTime(); })
+      .sort((x, y) => x.date.localeCompare(y.date));
+  }, [assignments]);
+  const todayKey = new Date().toLocaleDateString('fr-CA');
   
   const stats = useMemo(() => {
     const totalRevenue = services.reduce((sum, s) => sum + s.amount, 0);
@@ -79,6 +89,28 @@ const Dashboard: React.FC<DashboardProps> = ({ services, navigateToChat, onNavig
             </div>
         </div>
       </div>
+
+      {/* Rappel : prochaines assignations planifiées */}
+      <section aria-labelledby="upcoming-title" className="bg-white rounded-[28px] p-5 shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between mb-3">
+          <h3 id="upcoming-title" className="font-bold text-slate-900 flex items-center gap-2"><CalendarClock size={18} className="text-blue-600" aria-hidden="true" /> Prochaines assignations</h3>
+          <button type="button" onClick={() => onNavigate?.('calendar')} className="text-xs font-bold text-red-600 hover:text-red-700">Calendrier</button>
+        </div>
+        {upcoming.length ? (
+          <ul className="space-y-2">
+            {upcoming.map(a => {
+              const d = new Date(a.date);
+              return (
+                <li key={a.id} className="flex items-center gap-3 bg-blue-50 rounded-xl px-3 py-2 text-sm">
+                  <span className="text-[10px] font-bold uppercase text-blue-700 w-16 shrink-0">{d.toLocaleDateString('fr-CA') === todayKey ? 'Aujourd’hui' : 'Demain'}</span>
+                  <span className="font-bold tabular-nums text-slate-900">{d.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-slate-700 truncate">{a.type}{a.description ? ` · ${a.description}` : ''}</span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : <p className="text-sm text-slate-500">Aucune assignation prévue aujourd’hui ni demain.</p>}
+      </section>
 
       {/* Quick Actions Grid */}
       <div className="grid grid-cols-2 gap-4">
