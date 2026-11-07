@@ -110,3 +110,77 @@ export function zoneDigest(services, now = new Date()) {
     parTranche,
   };
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// Carte : secteurs d'achalandage de rayon 5 km (regroupement des zones de 1 km), couleur selon l'intensité.
+
+export const SPOT_RADIUS_KM = 5;
+export const MAX_SPOTS = 8;
+
+const toRad = d => d * Math.PI / 180;
+/** Distance en km entre deux points (formule de haversine). */
+export function distanceKm(aLat, aLng, bLat, bLng) {
+  const dLat = toRad(bLat - aLat), dLng = toRad(bLng - aLng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Courses localisées valides, optionnellement filtrées par tranche horaire (`slotId`) et jour de la semaine (`day`, 0 = dimanche). */
+export function locatedRides(services, { slotId = null, day = null } = {}) {
+  return services.filter(s => hasOrigin(s) && Number.isFinite(s.amount) && s.amount > 0 && Number.isFinite(Date.parse(s.date)))
+    .filter(s => {
+      if (slotId === null && day === null) return true;
+      const p = localParts(s.date);
+      return (slotId === null || slotOf(p.hour).id === slotId) && (day === null || p.day === day);
+    });
+}
+
+/**
+ * Secteurs d'achalandage : les zones de 1 km sont regroupées en secteurs de 5 km de rayon (le plus dense d'abord ;
+ * chaque course n'appartient qu'à un secteur). Niveau selon le nombre d'appels relativement au secteur le plus actif :
+ * ≥ 66 % « forte » (vert), ≥ 33 % « moyenne » (jaune), sinon « faible » (rouge).
+ * @returns {{status:'ok'|'insufficient', located:number, spots:Array}}
+ */
+export function hotspots(rides, { radiusKm = SPOT_RADIUS_KM, max = MAX_SPOTS } = {}) {
+  if (rides.length < MIN_SLOT) return { status: 'insufficient', located: rides.length, needed: MIN_SLOT, spots: [] };
+  const cells = new Map();
+  for (const s of rides) {
+    const z = zoneOf(s.origin_lat, s.origin_lng);
+    const c = cells.get(z.id) ?? { lat: z.lat, lng: z.lng, count: 0, amount: 0, types: new Map() };
+    c.count++; c.amount += s.amount; c.types.set(s.type, (c.types.get(s.type) ?? 0) + 1);
+    cells.set(z.id, c);
+  }
+  let left = [...cells.values()];
+  const clusters = [];
+  while (left.length && clusters.length < max) {
+    let best = null;
+    for (const c of left) {
+      let weight = 0;
+      for (const o of left) if (distanceKm(c.lat, c.lng, o.lat, o.lng) <= radiusKm) weight += o.count;
+      if (!best || weight > best.weight) best = { c, weight };
+    }
+    const near = left.filter(o => distanceKm(best.c.lat, best.c.lng, o.lat, o.lng) <= radiusKm);
+    const count = near.reduce((n, o) => n + o.count, 0);
+    // Centre : moyenne pondérée des zones du secteur ; membres définitifs : ce qui tombe dans 5 km de ce centre.
+    const lat = near.reduce((n, o) => n + o.lat * o.count, 0) / count, lng = near.reduce((n, o) => n + o.lng * o.count, 0) / count;
+    const members = left.filter(o => distanceKm(lat, lng, o.lat, o.lng) <= radiusKm);
+    const picked = members.length ? members : near;
+    clusters.push({ lat, lng, members: picked });
+    const gone = new Set(picked);
+    left = left.filter(o => !gone.has(o));
+  }
+  const noisy = rides.length >= 10; // beaucoup de courses : un secteur d'une seule course n'est que du bruit
+  const sized = clusters.map(k => {
+    const count = k.members.reduce((n, o) => n + o.count, 0), amount = k.members.reduce((n, o) => n + o.amount, 0);
+    const types = new Map();
+    for (const o of k.members) for (const [t, n] of o.types) types.set(t, (types.get(t) ?? 0) + n);
+    const [topType] = [...types].sort((a, b) => b[1] - a[1])[0];
+    return { lat: round(k.lat, 3), lng: round(k.lng, 3), radiusKm, count, share: round(count / rides.length, 2), averageAmount: round(amount / count, 2), topType };
+  }).filter(k => !noisy || k.count >= 2).sort((a, b) => b.count - a.count);
+  const top = sized[0]?.count ?? 1;
+  const spots = sized.map(k => {
+    const ratio = k.count / top;
+    return { ...k, ratio: round(ratio, 2), level: ratio >= 0.66 ? 'forte' : ratio >= 0.33 ? 'moyenne' : 'faible' };
+  });
+  return { status: spots.length ? 'ok' : 'insufficient', located: rides.length, needed: MIN_SLOT, spots };
+}

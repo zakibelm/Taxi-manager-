@@ -19,6 +19,7 @@
     "@capacitor/geolocation": "^8.2.4",
     "@fontsource/inter": "^5.2.5",
     "jspdf": "^4.2.1",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.561.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -27,6 +28,7 @@
   "devDependencies": {
     "@capacitor/android": "^8.6.0",
     "@capacitor/cli": "^8.6.0",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.21",

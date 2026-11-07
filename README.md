@@ -57,6 +57,7 @@ Le script installe Node 22, nginx et certbot, l'application dans `/opt/taximanag
 | `N8N_TOKEN_HEADER`, `N8N_PREFIX` | Facultatifs : `X-DrivePilot-Token` et `taximanager-tm` par défaut. |
 | `ADMIN_EMAILS` | Courriels administrateurs (séparés par des virgules) : l'admin voit les courses de tous les chauffeurs. |
 | `ALLOWED_EMAILS` | Chauffeurs autorisés : courriels ou domaines (`@flotte.ca`), séparés par des virgules. Vide : toute adresse confirmée peut s'inscrire (et utiliser l'assistant). Retirer une adresse refuse la connexion et ferme ses sessions. Les admins sont toujours autorisés. **Recommandé en production.** |
+| `MAP_TILE_HOST` | Facultatif : hôte HTTPS des tuiles de la carte du tableau de bord, seule origine externe autorisée par la politique de sécurité (images seulement). Défaut : `https://*.tile.openstreetmap.org` (gratuit, attribution affichée). Pour changer de fournisseur, modifier aussi l'URL dans `utils/mapConfig.ts`. |
 | `PUBLIC_URL` | Adresse publique utilisée dans les liens des courriels. Obligatoire en production. |
 | `MAIL_PROVIDER` | `n8n` (défaut, SMTP du workflow Comptes TM) ou `log` (lien écrit dans le journal du serveur). |
 | `SERVICE_TYPES` | Facultatif : types de course proposés. Défaut : Régulier, TCT, Olymel, Bombardier, Handami, James Miron. |

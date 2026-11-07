@@ -68,3 +68,51 @@ test('résumé pour l’IA : zones agrégées seulement, jamais la position exac
   for (const exact of ['45.552', '-73.591', '45.61', '-73.7']) assert.equal(json.includes(exact), false, exact);
   assert.equal(zoneDigest([], NOW).statut, 'pas assez de courses localisées');
 });
+
+import { hotspots, locatedRides, distanceKm, SPOT_RADIUS_KM } from './zones.mjs';
+
+test('distance : ~1,1 km par 0,01° de latitude ; Montréal–Laval ≈ 15 km', () => {
+  assert.ok(Math.abs(distanceKm(45.5, -73.6, 45.51, -73.6) - 1.11) < 0.02);
+  const d = distanceKm(45.5017, -73.5673, 45.6066, -73.7124);
+  assert.ok(d > 14 && d < 18, String(d));
+});
+
+const at = (lat, lng, n, amount = 20, type = 'Régulier') => Array.from({ length: n }, (_, i) => ride(`2026-10-${String(7 + 7 * (i % 4)).padStart(2, '0')}T13:15:00Z`, lat, lng, amount, type));
+
+test('secteurs : un grand, un moyen, un petit, avec niveau et couleur relatifs au plus actif', () => {
+  // Trois secteurs séparés de plus de 5 km : Centre-ville (10), Laval (6), Longueuil (2) ; le petit reste visible (14 courses < 10 ? non : 18 ≥ 10 → filtré à ≥ 2).
+  const rides = [...at(45.502, -73.567, 10), ...at(45.606, -73.712, 6, 40, 'Olymel'), ...at(45.531, -73.518, 2)];
+  const r = hotspots(rides);
+  assert.equal(r.status, 'ok');
+  assert.equal(r.spots.length, 3);
+  assert.deepEqual(r.spots.map(s => s.level), ['forte', 'moyenne', 'faible']);
+  assert.deepEqual(r.spots.map(s => s.count), [10, 6, 2]);
+  assert.equal(r.spots[0].radiusKm, SPOT_RADIUS_KM);
+  assert.equal(r.spots[1].topType, 'Olymel');
+  assert.equal(r.spots[1].averageAmount, 40);
+  assert.equal(r.spots.reduce((n, s) => n + s.share, 0) <= 1.01, true);
+});
+
+test('secteurs : chaque course dans un seul secteur ; des zones voisines (< 5 km) fusionnent', () => {
+  const rides = [...at(45.502, -73.567, 4), ...at(45.522, -73.567, 3), ...at(45.54, -73.55, 3)]; // tout à moins de 5 km
+  const r = hotspots(rides);
+  assert.equal(r.spots.length, 1);
+  assert.equal(r.spots[0].count, 10);
+  assert.equal(r.spots[0].level, 'forte');
+});
+
+test('secteurs : trop peu de courses → rien ; bruit d’une seule course écarté quand l’historique est étoffé', () => {
+  assert.equal(hotspots(at(45.5, -73.5, 2)).status, 'insufficient');
+  assert.equal(hotspots([]).spots.length, 0);
+  const noisy = hotspots([...at(45.502, -73.567, 9), ...at(45.65, -73.8, 1)]);
+  assert.equal(noisy.spots.length, 1);
+});
+
+test('filtre carte : tranche horaire et jour de la semaine', () => {
+  const rides = [...at(45.5, -73.5, 4), ride('2026-10-24T01:15:00Z', 45.6, -73.7)]; // 4 mercredis matin + 1 vendredi soir (heure locale)
+  assert.equal(locatedRides(rides).length, 5);
+  assert.equal(locatedRides(rides, { slotId: 'matin' }).length, 4);
+  assert.equal(locatedRides(rides, { slotId: 'matin', day: 3 }).length, 4);
+  assert.equal(locatedRides(rides, { slotId: 'matin', day: 1 }).length, 0);
+  assert.equal(locatedRides(rides, { slotId: 'soir' }).length, 1);
+});
