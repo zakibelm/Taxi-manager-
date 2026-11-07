@@ -152,9 +152,14 @@ const Calendar: React.FC<CalendarProps> = ({ assignments, serviceTypes, onServic
                       {a.type}{a.description ? <span className="text-slate-500"> · {a.description}</span> : null}
                     </span>
                     {closing !== a.id && (
-                      <span className="flex gap-1 shrink-0">
-                        <button type="button" onClick={() => { setClosing(a.id); setCloseAmount(''); setError(''); }}
-                          className="flex items-center gap-1 bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-lg"><Check size={14} aria-hidden="true" /> Terminer</button>
+                      <span className="flex gap-1 shrink-0 items-center">
+                        {/* « Terminer » seulement à partir du jour prévu : avant, la course ne peut pas être faite. */}
+                        {dayKey(a.date) <= todayKey ? (
+                          <button type="button" onClick={() => { setClosing(a.id); setCloseAmount(''); setError(''); }}
+                            className="flex items-center gap-1 bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-lg"><Check size={14} aria-hidden="true" /> Terminer</button>
+                        ) : (
+                          <span className="text-[11px] font-bold text-blue-700 bg-blue-100 px-2 py-1 rounded-lg">À venir</span>
+                        )}
                         <button type="button" onClick={() => remove(a)} aria-label={`Supprimer l’assignation de ${hhmm(new Date(a.date))}`}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>
                       </span>
