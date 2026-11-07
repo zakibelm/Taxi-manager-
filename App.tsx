@@ -290,6 +290,10 @@ const App: React.FC = () => {
 
                     )}
 
+                    <footer className="mt-10 pt-4 border-t border-slate-200 text-center text-xs text-slate-400">
+                        © Créé par zakibelm 2026 · <a href="/confidentialite/" className="underline hover:text-slate-600">Confidentialité</a>
+                    </footer>
+
                 </div>
 
             </main>
