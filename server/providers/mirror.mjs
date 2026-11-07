@@ -3,7 +3,13 @@
 export function createMirroredServices({ primary, store, log = console.error }) {
  const safe = (what, fn) => { try { return fn(); } catch(error) { log(`[sqlite] ${what} a échoué : ${error.message}`); return null; } };
  return {
-  list: user => primary.list(user),
+  /** n8n (période récente) + SQLite (historique) : n8n l'emporte en cas de doublon. Rien à changer côté application. */
+  async list(user) {
+   const recent = await primary.list(user);
+   const seen = new Set(recent.map(r => r.id ?? r.service_id));
+   const older = safe('lecture de l’historique', () => user.role === 'admin' ? store.listAll() : store.listByDriver(user.email)) ?? [];
+   return [...recent, ...older.filter(r => !seen.has(r.id))];
+  },
   async create(data, id) {
    const created = await primary.create(data, id);
    safe('copie de la course', () => store.upsert({ ...data, ...created, service_id: created?.service_id ?? created?.id ?? id }));
