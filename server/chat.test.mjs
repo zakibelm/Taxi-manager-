@@ -38,6 +38,24 @@ test('chat authenticates, bounds messages, filters rows and enforces per-user qu
  } finally { await new Promise(r=>server.close(r)); }
 });
 
+test('chat : plafond journalier par utilisateur et global, remis à zéro le lendemain',async()=>{
+ let clock=Date.parse('2026-11-07T12:00:00Z');
+ const middleware=createChatMiddleware({getUser:req=>({id:req.headers['x-test-user'],email:req.headers['x-test-user']+'@example.test',role:'chauffeur'}),
+  services:{list:async()=>[]},provider:{complete:async()=>'ok'},now:()=>clock,env:{CHAT_DAILY_LIMIT:'3',CHAT_DAILY_GLOBAL:'5'}});
+ const server=createServer((req,res)=>middleware(req,res,()=>res.end()));await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const base=`http://127.0.0.1:${server.address().port}/api/chat`;
+ const send=user=>fetch(base,{method:'POST',headers:{'Content-Type':'application/json','x-test-user':user},body:JSON.stringify({message:'ok',includeServices:false})});
+ try {
+  for(let i=0;i<3;i++) assert.equal((await send('a')).status,200);
+  assert.equal((await send('a')).status,429);
+  assert.equal((await send('b')).status,200);
+  assert.equal((await send('b')).status,200);
+  assert.equal((await send('c')).status,503);
+  clock+=24*3600*1000;
+  assert.equal((await send('a')).status,200);
+ } finally { await new Promise(r=>server.close(r)); }
+});
+
 test('OmniRoute : URL, modèle gratuit et clé optionnelle',async()=>{
  const {llmBase,llmModel}=await import('./providers/openrouter.mjs');
  assert.equal(llmBase({LLM_BASE_URL:'http://100.64.1.2:20128/v1/'}),'http://100.64.1.2:20128/v1');
