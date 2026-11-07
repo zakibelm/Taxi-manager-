@@ -263,7 +263,7 @@ const App: React.FC = () => {
                     )}
 
                     {currentPage === 'calendar' && (
-                        <Calendar services={services} assignments={assignments} serviceTypes={serviceTypes} onServiceAdded={refreshServices} onAssignmentsChanged={refreshAssignments} onTypeCreated={addLocalType} />
+                        <Calendar assignments={assignments} serviceTypes={serviceTypes} onServiceAdded={refreshServices} onAssignmentsChanged={refreshAssignments} onTypeCreated={addLocalType} />
                     )}
 
                     {currentPage === 'profile' && (
