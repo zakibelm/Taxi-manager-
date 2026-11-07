@@ -9,8 +9,10 @@ import { Capacitor } from '@capacitor/core';
 export const ADS = {
   appId: 'ca-app-pub-1054414127660059~2854872316', // aussi injecté dans le manifeste Android (workflow APK)
   bannerId: 'ca-app-pub-1054414127660059/7316861504',
-  // Annonces de test tant que l'app n'est pas publiée et approuvée par AdMob. Passer à false à la publication.
-  testing: true,
+  // Annonces de test par défaut (une annonce de test ne rapporte rien, mais protège le compte AdMob pendant le développement).
+  // Annonces réelles seulement si la compilation reçoit VITE_ADMOB_TEST=false : dans le workflow APK, définir la variable
+  // de dépôt GitHub ADMOB_TEST à « false » au moment de la publication (Settings → Secrets and variables → Actions → Variables).
+  testing: (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_ADMOB_TEST !== 'false',
 };
 
 const setAdHeight = (px: number) => document.documentElement.style.setProperty('--ad-h', `${Math.max(0, Math.round(px))}px`);

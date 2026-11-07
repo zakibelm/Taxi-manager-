@@ -35,6 +35,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: npm test
       - run: npm run build
+        env:
+          # AdMob : annonces de test tant que la variable de dépôt ADMOB_TEST n'est pas « false » (voir utils/ads.ts).
+          VITE_ADMOB_TEST: ${{ vars.ADMOB_TEST || 'true' }}
 
       - name: Projet Android
         env:
