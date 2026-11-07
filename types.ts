@@ -34,6 +34,9 @@ export interface Service {
   amount: number;
   date: string; // ISO string
   description?: string;
+  /** Origine de l'appel (case « Localiser l'appel », facultative) : coordonnées arrondies à ≈ 100 m. */
+  origin_lat?: number;
+  origin_lng?: number;
   created_at: string;
   updated_at: string;
   /** Saisie hors ligne, pas encore envoyée au serveur. */

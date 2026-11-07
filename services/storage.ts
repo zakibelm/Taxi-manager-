@@ -28,7 +28,7 @@ const DEFAULT_SETTINGS: UserSettings = { enableRAG: true };
 // --- Hors ligne : file d'envoi et dernière liste connue (téléphone du chauffeur uniquement, vidées à la déconnexion) ---
 const PENDING = 'taximanager_pending_services';
 const CACHE = 'taximanager_services_cache';
-type NewService = Pick<Service, 'type' | 'amount' | 'date' | 'description'>;
+type NewService = Pick<Service, 'type' | 'amount' | 'date' | 'description' | 'origin_lat' | 'origin_lng'>;
 type PendingService = NewService & { id: string; driver_email: string; created_at: string };
 /** Erreur réseau (pas de connexion, serveur injoignable) : distincte d'un refus du serveur. */
 class OfflineError extends Error {}
@@ -169,7 +169,7 @@ class BackendService {
     let sent = 0;
     for (const p of this.pending()) {
       try {
-        await this.api('/api/services', 'POST', { id: p.id, type: p.type, amount: p.amount, date: p.date, description: p.description ?? '' });
+        await this.api('/api/services', 'POST', { id: p.id, type: p.type, amount: p.amount, date: p.date, description: p.description ?? '', ...(p.origin_lat !== undefined && p.origin_lng !== undefined ? { origin_lat: p.origin_lat, origin_lng: p.origin_lng } : {}) });
         this.savePending(this.pending().filter(x => x.id !== p.id)); sent++;
       } catch (error) {
         if (error instanceof OfflineError) break;            // toujours hors ligne : on réessaiera

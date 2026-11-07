@@ -3,9 +3,10 @@ import { createLlmProvider } from './providers/openrouter.mjs';
 import { privateFiles } from './files.mjs';
 import { securityHeaders } from './security.mjs';
 import { createAuthMiddleware } from './auth.mjs';
-import { createN8nClient, createServicesProvider, createAssignmentsProvider } from './providers/n8n.mjs';
+import { createN8nClient, createServicesProvider, createAssignmentsProvider, createCompaniesProvider } from './providers/n8n.mjs';
 import { createAssignmentsMiddleware } from './assignments.mjs';
 import { createN8nStore } from './store.mjs';
+import { createCompaniesMiddleware, createCompanyService } from './companies.mjs';
 import { createServicesMiddleware } from './services.mjs';
 import { createServiceTypesMiddleware } from './service-types.mjs';
 import { createRegistrationMiddleware } from './registration.mjs';
@@ -18,6 +19,7 @@ export function createApiMiddlewares(env, { fetcher = fetch } = {}) {
  const auth = createAuthMiddleware({ store, env });
  const registration = createRegistrationMiddleware({ store, auth, env });
  const services = createServicesProvider(client);
+ const companies = createCompanyService({ provider: createCompaniesProvider(client), services });
  // Sonde de supervision (systemd, Uptime Kuma…) : aucune donnée, aucun appel à n8n.
  const health = (req, res, next) => {
   if(req.url !== '/api/health') return next();
@@ -28,8 +30,9 @@ export function createApiMiddlewares(env, { fetcher = fetch } = {}) {
   securityHeaders(env), privateFiles, health, registration, auth,
   createServicesMiddleware({ getUser: auth.getUser, provider: services, env }),
   createAssignmentsMiddleware({ getUser: auth.getUser, provider: createAssignmentsProvider(client), env }),
+  createCompaniesMiddleware({ getUser: auth.getUser, service: companies }),
   createServiceTypesMiddleware({ getUser: auth.getUser, provider: services, env }),
-  createChatMiddleware({ getUser: auth.getUser, provider: createLlmProvider(env), services })
+  createChatMiddleware({ getUser: auth.getUser, provider: createLlmProvider(env), services, companies })
  ];
 }
 export function apiPlugin(env) {
