@@ -1,7 +1,7 @@
 // Faux n8n pour les tests : reproduit le contrat des workflows « … TM » (chemins, validations utiles, réponses).
 // Aucune donnée réelle, aucun réseau.
 export function createFakeN8n({ token = 'test-n8n-token', header = 'x-drivepilot-token', prefix = 'taximanager-tm', now = Date.now } = {}) {
- const db = { accounts: [], tokens: [], sessions: [], attempts: [], services: [], outbox: [], calls: [] };
+ const db = { accounts: [], tokens: [], sessions: [], attempts: [], services: [], assignments: [], outbox: [], calls: [] };
  const ok = (data, status = 200) => ({ ok: true, status, json: async () => ({ success: true, ...data }) });
  const fail = status => ({ ok: false, status, json: async () => ({ error: 'refusé' }) });
  const routes = {
@@ -57,6 +57,10 @@ export function createFakeN8n({ token = 'test-n8n-token', header = 'x-drivepilot
   'POST services/create': ({ body }) => { const row = { ...body, created_at: new Date(now()).toISOString(), updated_at: new Date(now()).toISOString() }; db.services.push(row); return ok({ service: { ...row, id: row.service_id } }, 201); },
   'GET services/list': ({ query }) => ok({ services: db.services.filter(s => s.driver_email === query.email).map(s => ({ ...s, id: s.service_id })) }),
   'GET services/all': () => ok({ services: db.services.map(s => ({ ...s, id: s.service_id })) }),
+  'POST assignments/create': ({ body }) => { const row = { ...body, created_at: new Date(now()).toISOString() }; db.assignments.push(row); return ok({ assignment: { ...row, id: row.assignment_id } }, 201); },
+  'GET assignments/list': ({ query }) => ok({ assignments: db.assignments.filter(a => a.driver_email === query.email).map(a => ({ ...a, id: a.assignment_id })) }),
+  'GET assignments/all': () => ok({ assignments: db.assignments.map(a => ({ ...a, id: a.assignment_id })) }),
+  'DELETE assignments/delete': ({ body }) => { db.assignments = db.assignments.filter(a => !(a.assignment_id === body.id && a.driver_email === body.driver_email)); return ok({}); },
   'DELETE services/delete': ({ body }) => { db.services = db.services.filter(s => !(s.service_id === body.id && s.driver_email === body.driver_email)); return ok({}); }
  };
  async function fetcher(href, options = {}) {
