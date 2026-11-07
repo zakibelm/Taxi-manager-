@@ -50,6 +50,7 @@ jobs:
       # Signature : si les secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS et
       # ANDROID_KEY_PASSWORD sont définis, APK « release » signé avec la clé du projet (mises à jour sans désinstaller).
       # Sinon, APK de débogage comme avant.
+      # Avec la clé, un AAB signé (format exigé par le Play Store) est aussi produit, à côté de l'APK.
       - name: Compiler et signer
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -61,7 +62,7 @@ jobs:
           OUT="out/TaxiManager-${VERSION}-${GITHUB_RUN_NUMBER}.apk"
           mkdir -p out
           if [ -n "$KEYSTORE_B64" ] && [ -n "$KS_PASS" ] && [ -n "$KEY_ALIAS" ]; then
-            (cd android && ./gradlew assembleRelease --no-daemon)
+            (cd android && ./gradlew assembleRelease bundleRelease --no-daemon)
             BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
             "$BT/zipalign" -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
@@ -69,9 +70,15 @@ jobs:
             "$BT/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-pass env:KS_PASS --ks-key-alias "$KEY_ALIAS" \
               --key-pass env:KEY_PASS --out "$OUT" "$RUNNER_TEMP/aligned.apk"
             "$BT/apksigner" verify "$OUT"
+            # AAB pour le Play Store : signé avec la clé d'importation (Google re-signe via la signature d'applications Play).
+            AAB="out/TaxiManager-${VERSION}-${GITHUB_RUN_NUMBER}.aab"
+            cp android/app/build/outputs/bundle/release/app-release.aab "$AAB"
+            jarsigner -keystore "$RUNNER_TEMP/release.jks" -storepass:env KS_PASS -keypass:env KEY_PASS \
+              -sigalg SHA256withRSA -digestalg SHA-256 "$AAB" "$KEY_ALIAS"
+            jarsigner -verify "$AAB" > /dev/null
             rm -f "$RUNNER_TEMP/release.jks"
           else
-            echo "::notice::Secrets de signature absents : APK de débogage."
+            echo "::notice::Secrets de signature absents : APK de débogage, pas d'AAB pour le Play Store."
             (cd android && ./gradlew assembleDebug --no-daemon)
             cp android/app/build/outputs/apk/debug/app-debug.apk "$OUT"
           fi
@@ -79,7 +86,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: TaxiManager-apk
-          path: out/*.apk
+          path: out/*
 
   release:
     needs: apk
@@ -99,7 +106,7 @@ jobs:
         run: |
           # Release déjà créée depuis GitHub (bouton « Draft a new release ») : on y joint l'APK ; sinon on la crée.
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" out/*.apk --clobber
+            gh release upload "$GITHUB_REF_NAME" out/* --clobber
           else
-            gh release create "$GITHUB_REF_NAME" out/*.apk --title "Taxi Manager $GITHUB_REF_NAME" --notes "APK Android de Taxi Manager. Installation : autoriser les sources inconnues, puis ouvrir le fichier."
+            gh release create "$GITHUB_REF_NAME" out/* --title "Taxi Manager $GITHUB_REF_NAME" --notes "APK Android de Taxi Manager. Installation : autoriser les sources inconnues, puis ouvrir le fichier."
           fi
