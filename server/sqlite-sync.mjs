@@ -58,9 +58,14 @@ export async function run(env = process.env, fetcher = fetch) {
  if(!env.SQLITE_PATH) throw new Error('SQLITE_PATH non défini.');
  const store = openRideStore(env.SQLITE_PATH);
  try {
-  const source = createServicesProvider(createN8nClient(env, fetcher));
-  const sync = await syncRides({ source, store });
-  console.log(`[sqlite] rattrapage : ${sync.seen} courses lues dans n8n, ${sync.copied} copiées, ${sync.total} au total.`);
+  // STORAGE=local : SQLite est la source de vérité. Ni rattrapage (il ferait réapparaître les courses supprimées) ni purge de n8n.
+  const local = env.STORAGE === 'local';
+  const source = local ? null : createServicesProvider(createN8nClient(env, fetcher));
+  if(local) console.log('[sqlite] STORAGE=local : pas de rattrapage depuis n8n (SQLite est la source).');
+  else {
+   const sync = await syncRides({ source, store });
+   console.log(`[sqlite] rattrapage : ${sync.seen} courses lues dans n8n, ${sync.copied} copiées, ${sync.total} au total.`);
+  }
   let backedUp = false;
   if(env.SQLITE_BACKUP_DIR) {
    const b = backupRides({ store, dir: env.SQLITE_BACKUP_DIR, keep: Number(env.SQLITE_BACKUP_KEEP) || 14 });
@@ -69,7 +74,7 @@ export async function run(env = process.env, fetcher = fetch) {
   } else console.warn('[sqlite] SQLITE_BACKUP_DIR non défini : aucune sauvegarde faite.');
   // Fenêtre glissante dans n8n (désactivée par défaut) : jamais sans sauvegarde du jour, jamais sans copie vérifiée.
   const days = Number(env.N8N_RETENTION_DAYS);
-  if(Number.isFinite(days) && days >= 7) {
+  if(!local && Number.isFinite(days) && days >= 7) {
    if(!backedUp) console.warn('[sqlite] N8N_RETENTION_DAYS ignoré : une sauvegarde (SQLITE_BACKUP_DIR) est requise avant toute purge.');
    else {
     const p = await purgeOldFromN8n({ source, store, days });
