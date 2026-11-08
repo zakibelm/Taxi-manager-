@@ -16,6 +16,7 @@ import { createMirroredServices } from './providers/mirror.mjs';
 import { openLocalDb, createLocalStore, createLocalAssignmentsProvider, createLocalCompaniesProvider, createLocalServicesProvider } from './local.mjs';
 import { openDispatchStore } from './dispatch.mjs';
 import { createDatataxiMiddleware } from './datataxi.mjs';
+import { createForecastMiddleware } from './forecast.mjs';
 // Une seule liste ordonnée, partagée par le plugin Vite (dev/preview) et le serveur de production.
 // Toutes les données (comptes, jetons, sessions, tentatives, courses) passent par les workflows n8n « … TM ».
 export function createApiMiddlewares(env, { fetcher = fetch } = {}) {
@@ -28,7 +29,9 @@ export function createApiMiddlewares(env, { fetcher = fetch } = {}) {
  const db = local ? openLocalDb(env.SQLITE_PATH) : null;
  const store = local ? createLocalStore(db, { client, env }) : createN8nStore(client, env);
  // Réception DataTaxi (DATATAXI_TOKEN + SQLITE_PATH) : journal de répartition Fraxion dans la table dispatch_events.
- const dispatchMiddleware = env.DATATAXI_TOKEN && env.SQLITE_PATH ? [createDatataxiMiddleware({ store: openDispatchStore(env.SQLITE_PATH), env })] : [];
+ // Le même magasin sert la réception (DataTaxi) et les prévisions (GET /api/forecast, connexion requise).
+ const dispatchStore = env.SQLITE_PATH ? openDispatchStore(env.SQLITE_PATH) : null;
+ const dispatchMiddleware = env.DATATAXI_TOKEN && dispatchStore ? [createDatataxiMiddleware({ store: dispatchStore, env })] : [];
  const auth = createAuthMiddleware({ store, env });
  const registration = createRegistrationMiddleware({ store, auth, env });
  const services = local ? createLocalServicesProvider(rideStore)
@@ -48,6 +51,7 @@ export function createApiMiddlewares(env, { fetcher = fetch } = {}) {
   createAssignmentsMiddleware({ getUser: auth.getUser, provider: assignments, env }),
   createCompaniesMiddleware({ getUser: auth.getUser, service: companies }),
   createServiceTypesMiddleware({ getUser: auth.getUser, provider: services, env }),
+  ...(dispatchStore ? [createForecastMiddleware({ getUser: auth.getUser, store: dispatchStore, env })] : []),
   createChatMiddleware({ getUser: auth.getUser, provider: createLlmProvider(env), services, companies })
  ];
 }

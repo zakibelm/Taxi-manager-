@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { LayoutDashboard, Car, MessageSquare, LogOut, User, Settings, X, CalendarDays, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Car, MessageSquare, LogOut, User, Settings, X, CalendarDays, BarChart3, TrendingUp } from 'lucide-react';
 
 import { UserSession } from '../types';
 
@@ -32,6 +32,7 @@ export const Sidebar: React.FC<NavigationProps> = ({ currentPage, onNavigate, on
 
     { id: 'services', label: 'Services', icon: Car },
     { id: 'analysis', label: 'Tableau de bord', icon: BarChart3 },
+    { id: 'forecast', label: 'Prévisions', icon: TrendingUp },
     { id: 'calendar', label: 'Calendrier', icon: CalendarDays },
 
     { id: 'chat', label: 'Assistant IA', icon: MessageSquare },
@@ -225,6 +226,7 @@ export const BottomNav: React.FC<NavigationProps> = ({ currentPage, onNavigate, 
 
         { id: 'services', icon: Car },
         { id: 'analysis', icon: BarChart3 },
+        { id: 'forecast', icon: TrendingUp },
         { id: 'calendar', icon: CalendarDays },
 
         { id: 'chat', icon: MessageSquare },
