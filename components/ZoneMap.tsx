@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Map as MapIcon } from 'lucide-react';
+import { Loader2, LocateFixed, Map as MapIcon } from 'lucide-react';
 import { Service } from '../types';
 import { DAYS, SLOTS, hotspots, locatedRides, localParts, recommendZones, slotOf, MIN_SLOT } from '../utils/zones.mjs';
 import { LEVEL_STYLE, MAP_TILES } from '../utils/mapConfig';
 import { CompanyZones, companyApi } from '../services/company';
+import { currentOrigin } from '../utils/geo';
 
 const money = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 const pct = (n: number) => Math.round(n * 100) + ' %';
@@ -46,6 +47,26 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const showMap = result.status === 'ok';
+  const meRef = useRef<import('leaflet').CircleMarker | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState('');
+
+  // Bouton « Ma position » : centre la carte sur le téléphone et y place un point bleu. La position reste sur l'appareil
+  // (arrondie à ≈ 100 m, comme pour l'origine d'un appel) ; rien n'est envoyé au serveur.
+  const locateMe = async () => {
+    const L = leafletRef.current, map = mapRef.current;
+    if (!L || !map || locating) return;
+    setLocating(true); setLocateError('');
+    try {
+      const { origin_lat: lat, origin_lng: lng } = await currentOrigin();
+      if (!mapRef.current) return;
+      meRef.current?.remove();
+      meRef.current = L.circleMarker([lat, lng], { radius: 8, color: '#ffffff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 })
+        .bindTooltip('Vous êtes ici').addTo(map);
+      map.setView([lat, lng], Math.max(map.getZoom(), 12));
+    } catch (e) { setLocateError(e instanceof Error ? e.message : 'Position introuvable.'); }
+    finally { setLocating(false); }
+  };
 
   // Création de la carte (Leaflet est chargé à la demande : il n'alourdit pas le démarrage de l'application).
   // La carte s'affiche toujours (vue sur la région de Montréal) ; les cercles s'ajoutent quand il y a assez d'appels localisés.
@@ -70,7 +91,7 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
   }, []);
 
   // Libération de la carte au démontage.
-  useEffect(() => () => { mapRef.current?.remove(); mapRef.current = null; layerRef.current = null; }, []);
+  useEffect(() => () => { mapRef.current?.remove(); mapRef.current = null; layerRef.current = null; meRef.current = null; }, []);
 
   // Cercles : un par secteur, rayon réel de 5 km.
   useEffect(() => {
@@ -122,7 +143,17 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
       )}
       {failed
         ? <p role="alert" className="text-sm text-amber-700">La carte n’a pas pu se charger (connexion requise). La liste ci-dessous reste valable.</p>
-        : <div ref={box} role="img" aria-label="Carte des secteurs d’achalandage" className="h-72 w-full rounded-2xl overflow-hidden border border-slate-100 z-0" />}
+        : (
+          <div className="relative">
+            <div ref={box} role="img" aria-label="Carte des secteurs d’achalandage" className="h-72 w-full rounded-2xl overflow-hidden border border-slate-100 z-0" />
+            <button type="button" onClick={locateMe} disabled={!ready || locating} aria-label="Me géolocaliser sur la carte" title="Ma position"
+              className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-white text-slate-800 text-xs font-bold px-3 py-2 rounded-full shadow border border-slate-200 hover:bg-slate-50 disabled:opacity-60">
+              {locating ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <LocateFixed size={16} className="text-blue-600" aria-hidden="true" />}
+              Ma position
+            </button>
+          </div>
+        )}
+      {locateError && <p role="alert" className="text-sm text-amber-700">{locateError}</p>}
       {showMap && (
         <>
           <ul className="space-y-2">
