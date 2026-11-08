@@ -138,6 +138,23 @@ export function createLocalStore(db, { client, env = process.env, now = Date.now
    },
    async verify(id) { q.verify.run(id); },
    async setPassword(id, { salt, passwordHash, authVersion }) { q.password.run(salt, passwordHash, authVersion, id); },
+   /**
+    * Suppression de compte. Si n8n connaît le compte (courriels envoyés), il est effacé là-bas d'abord : en cas d'échec,
+    * rien n'est supprimé localement et la demande peut être répétée. Puis une seule transaction SQLite.
+    */
+   async erase(acc) {
+    const row = q.byId.get(acc.id);
+    if(row?.n8n_synced) await client.call('account/erase', { method: 'POST', body: { id: acc.id, email: acc.email } });
+    db.exec('BEGIN');
+    try {
+     db.prepare('DELETE FROM sessions WHERE json_extract(user_json, \'$.id\') = ?').run(acc.id);
+     db.prepare('DELETE FROM tokens WHERE account_id = ?').run(acc.id);
+     db.prepare('DELETE FROM assignments WHERE driver_email = ?').run(acc.email);
+     db.prepare('DELETE FROM memberships WHERE driver_email = ?').run(acc.email);
+     db.prepare('DELETE FROM accounts WHERE account_id = ?').run(acc.id);
+     db.exec('COMMIT');
+    } catch(error) { db.exec('ROLLBACK'); throw error; }
+   },
    /** Envoi par n8n (SMTP) ; n8n limite à un courriel toutes les 5 minutes par compte. */
    async mail(id, subject, message) {
     const row = q.byId.get(id);

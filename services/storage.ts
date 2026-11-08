@@ -125,6 +125,20 @@ class BackendService {
 
   }
 
+  /** Suppression définitive du compte et de toutes ses données (serveur), puis nettoyage de cet appareil. Exige le mot de passe. */
+  async deleteAccount(password: string): Promise<void> {
+
+    if (this.demo || !this.email) throw new ApiError('Aucun compte à supprimer en mode démo.', 400);
+
+    await this.api('/api/account/delete', 'POST', { identifier: this.email, password, confirm: true });
+
+    localStorage.removeItem('taximanager_profile:' + this.email.trim().toLowerCase());
+    localStorage.removeItem(PENDING); localStorage.removeItem(CACHE); localStorage.removeItem('taximanager_last_user'); localStorage.removeItem('taximanager_types_cache');
+
+    this.email = ''; this.conversations = [];
+
+  }
+
   async loginDemo(): Promise<UserSession> {
 
     this.demo = true;
