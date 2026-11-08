@@ -6,6 +6,8 @@ import { LEVEL_STYLE, MAP_TILES } from '../utils/mapConfig';
 import { CompanyZones, companyApi } from '../services/company';
 import { currentOrigin } from '../utils/geo';
 
+/** Échelle de la carte une fois l'appareil localisé (rues lisibles, comme sur la capture demandée). */
+const LOCATED_ZOOM = 17;
 const money = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 const pct = (n: number) => Math.round(n * 100) + ' %';
 
@@ -53,7 +55,8 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
 
   // Bouton « Ma position » : centre la carte sur le téléphone et y place un point bleu. La position reste sur l'appareil
   // (arrondie à ≈ 100 m, comme pour l'origine d'un appel) ; rien n'est envoyé au serveur.
-  const locateMe = async () => {
+  const located = useRef(false);   // une fois localisé, on garde cette échelle au lieu de recadrer sur les secteurs
+  const locateMe = async (silent = false) => {
     const L = leafletRef.current, map = mapRef.current;
     if (!L || !map || locating) return;
     setLocating(true); setLocateError('');
@@ -63,10 +66,21 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
       meRef.current?.remove();
       meRef.current = L.circleMarker([lat, lng], { radius: 8, color: '#ffffff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 })
         .bindTooltip('Vous êtes ici').addTo(map);
-      map.setView([lat, lng], Math.max(map.getZoom(), 12));
-    } catch (e) { setLocateError(e instanceof Error ? e.message : 'Position introuvable.'); }
+      located.current = true;
+      map.setView([lat, lng], LOCATED_ZOOM);
+    } catch (e) { if (!silent) setLocateError(e instanceof Error ? e.message : 'Position introuvable.'); }
     finally { setLocating(false); }
   };
+
+  // Par défaut, la carte s'ouvre sur la position de l'utilisateur à cette échelle. Sans autorisation ou sans GPS, elle
+  // reste sur la région de Montréal (aucun message : le bouton « Ma position » permet de réessayer).
+  const autoLocated = useRef(false);
+  useEffect(() => {
+    if (!ready || autoLocated.current) return;
+    autoLocated.current = true;
+    void locateMe(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 
   // Création de la carte (Leaflet est chargé à la demande : il n'alourdit pas le démarrage de l'application).
   // La carte s'affiche toujours (vue sur la région de Montréal) ; les cercles s'ajoutent quand il y a assez d'appels localisés.
@@ -108,7 +122,7 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
       bounds.extend(circle.getBounds());
     }
     map.invalidateSize();
-    map.fitBounds(bounds.pad(0.1));
+    if (!located.current) map.fitBounds(bounds.pad(0.1));
   }, [ready, result]);
 
   return (
@@ -146,7 +160,7 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
         : (
           <div className="relative">
             <div ref={box} role="img" aria-label="Carte des secteurs d’achalandage" className="h-72 w-full rounded-2xl overflow-hidden border border-slate-100 z-0" />
-            <button type="button" onClick={locateMe} disabled={!ready || locating} aria-label="Me géolocaliser sur la carte" title="Ma position"
+            <button type="button" onClick={() => locateMe()} disabled={!ready || locating} aria-label="Me géolocaliser sur la carte" title="Ma position"
               className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-white text-slate-800 text-xs font-bold px-3 py-2 rounded-full shadow border border-slate-200 hover:bg-slate-50 disabled:opacity-60">
               {locating ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <LocateFixed size={16} className="text-blue-600" aria-hidden="true" />}
               Ma position
