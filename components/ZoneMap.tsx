@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, LocateFixed, Map as MapIcon } from 'lucide-react';
 import { Service } from '../types';
-import { DAYS, SLOTS, hotspots, locatedRides, localParts, recommendZones, slotOf, MIN_SLOT } from '../utils/zones.mjs';
+import { SLOTS, hotspots, locatedRides, localParts, slotOf, MIN_SLOT } from '../utils/zones.mjs';
 import { LEVEL_STYLE, MAP_TILES } from '../utils/mapConfig';
 import { CompanyZones, companyApi } from '../services/company';
 import { currentOrigin } from '../utils/geo';
@@ -12,18 +12,17 @@ const money = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 const pct = (n: number) => Math.round(n * 100) + ' %';
 
 /** Carte des secteurs d'achalandage prévus (rayon 5 km) : vert = forte, jaune = moyenne, rouge = faible.
- *  Basée sur les courses localisées, pour une tranche horaire (et, au choix, le même jour de la semaine). */
+ *  Basée sur les courses localisées, pour une tranche horaire (tous les jours de la semaine). */
 const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ services, company = false }) => {
   const initial = useMemo(() => {
     const now = new Date(), here = localParts(now), slot = slotOf(here.hour);
-    return { slotId: slot.id, day: here.day, sameDay: recommendZones(services, now).basis === 'day-slot' };
+    return { slotId: slot.id };
   // Valeurs de départ : calculées une seule fois, ensuite le chauffeur choisit.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [slotId, setSlotId] = useState(initial.slotId);
-  const [sameDay, setSameDay] = useState(initial.sameDay);
 
-  const mine = useMemo(() => hotspots(locatedRides(services, { slotId, day: sameDay ? initial.day : null })), [services, slotId, sameDay, initial.day]);
+  const mine = useMemo(() => hotspots(locatedRides(services, { slotId, day: null })), [services, slotId]);
   const totalMine = useMemo(() => locatedRides(services).length, [services]);
 
   // Mode compagnie : zones agrégées calculées par le serveur (membres approuvés qui partagent, minimum 3 chauffeurs).
@@ -33,11 +32,11 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
     if (!company) { setRemote(null); setRemoteError(''); return; }
     let active = true;
     setRemote(null); setRemoteError('');
-    companyApi.zones(slotId, sameDay ? initial.day : null)
+    companyApi.zones(slotId, null)
       .then(r => { if (active) setRemote(r); })
       .catch(e => { if (active) setRemoteError(e instanceof Error ? e.message : 'Prévisions de la compagnie indisponibles.'); });
     return () => { active = false; };
-  }, [company, slotId, sameDay, initial.day]);
+  }, [company, slotId]);
   const none = { status: 'insufficient' as const, located: 0, needed: MIN_SLOT, spots: [] as typeof mine.spots };
   const result = company ? (remote?.status === 'ok' && remote.spots ? remote.spots as typeof mine : none) : mine;
   const totalLocated = company ? result.located : totalMine;
@@ -140,10 +139,6 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
           </button>
         ))}
       </div>
-      <label className="flex items-center gap-2 text-sm text-slate-600">
-        <input type="checkbox" className="h-4 w-4 accent-red-600" checked={sameDay} onChange={e => setSameDay(e.target.checked)} />
-        Seulement les {DAYS[initial.day]}s
-      </label>
 
       {!showMap && (
         <p className="text-sm text-slate-500">
@@ -152,7 +147,7 @@ const ZoneMap: React.FC<{ services: Service[]; company?: boolean }> = ({ service
             : company && remote?.status === 'insufficient' ? `Les zones de la compagnie s’afficheront dès que ${remote.minDrivers} chauffeurs au moins partageront leurs zones (actuellement ${remote.contributors}).`
             : totalLocated === 0
             ? 'Cochez « Localiser l’origine de l’appel » en saisissant vos courses : la carte se remplit au fil de vos appels.'
-            : `Pas assez d’appels localisés pour cette période (il en faut au moins ${MIN_SLOT}). Essayez une autre tranche horaire${sameDay ? ' ou décochez « Seulement les ' + DAYS[initial.day] + 's »' : ''}.`}
+            : `Pas assez d’appels localisés pour cette période (il en faut au moins ${MIN_SLOT}). Essayez une autre tranche horaire.`}
         </p>
       )}
       {failed
