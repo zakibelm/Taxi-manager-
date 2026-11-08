@@ -52,6 +52,11 @@ export function createAssignmentsProvider(client) {
    return rows(data).filter(a => user.role === 'admin' || a.driver_email === user.email);
   },
   async create(data, id) {
+   // Renvoi d'une file hors ligne seulement (id fourni) : on vérifie dans la table complète qu'un autre chauffeur n'a pas déjà cet identifiant.
+   if(id) {
+    const taken = rows(await client.call('assignments/all', { unavailable })).find(a => (a.id ?? a.assignment_id) === id);
+    if(taken && taken.driver_email !== data.driver_email) throw new HttpError(409, 'Identifiant déjà utilisé.');
+   }
    return (await client.call('assignments/create', { method: 'POST', body: { ...data, assignment_id: id || randomUUID() }, unavailable })).assignment;
   },
   async delete(id, owner) { await client.call('assignments/delete', { method: 'DELETE', body: { id, driver_email: owner }, unavailable }); }
@@ -74,6 +79,10 @@ export function createServicesProvider(client) {
    return rows(data).filter(s => user.role === 'admin' || s.driver_email === user.email);
   },
   async create(data, id) {
+   if(id) {
+    const taken = rows(await client.call('services/all', { unavailable })).find(x => (x.id ?? x.service_id) === id);
+    if(taken && taken.driver_email !== data.driver_email) throw new HttpError(409, 'Identifiant déjà utilisé.');
+   }
    return (await client.call('services/create', { method: 'POST', body: { ...data, service_id: id || randomUUID() }, unavailable })).service;
   },
   async delete(id, owner) { await client.call('services/delete', { method: 'DELETE', body: { id, driver_email: owner }, unavailable }); }
@@ -86,7 +95,8 @@ export function createCompaniesProvider(client) {
  const rows = (data, key) => { if(!Array.isArray(data[key])) throw new HttpError(502, 'Réponse du service invalide.'); return data[key]; };
  return {
   async companies() { return rows(await client.call('companies/all', { unavailable }), 'companies'); },
-  async saveCompany(company) { await client.call('companies/save', { method: 'POST', body: company, unavailable }); return company; },
+  // `created_by` n'existe que dans la base locale : le workflow n8n ne le connaît pas.
+  async saveCompany({ created_by, ...company }) { await client.call('companies/save', { method: 'POST', body: company, unavailable }); return company; },
   async memberships() { return rows(await client.call('memberships/all', { unavailable }), 'memberships'); },
   async saveMembership(membership) { await client.call('memberships/save', { method: 'POST', body: membership, unavailable }); return membership; }
  };

@@ -17,6 +17,11 @@ export function createAssignmentsMiddleware({ getUser, provider, env = process.e
    if(req.method === 'POST' && url.pathname === '/api/assignments') {
     const body = await jsonBody(req);
     const { id, ...input } = validate(() => { const v = assignmentInput(body); return { ...v, type: canonicalType(v.type, serviceTypes(env)) }; });
+    if(id) {
+     // Renvoi d'une file hors ligne : on rend l'assignation existante du même propriétaire au lieu d'en créer une autre.
+     const mine = (await provider.list(user)).find(a => a.id === id && a.driver_email === user.email);
+     if(mine) return reply(res, 200, { assignment: mine });
+    }
     const assignment = await provider.create({ ...input, driver_email: user.email }, id);
     return reply(res, 201, { assignment });
    }
