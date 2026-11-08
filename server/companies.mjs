@@ -3,7 +3,7 @@ import { HttpError, jsonBody, reply, sameOrigin, validate } from './http.mjs';
 import { object, text } from './validation.mjs';
 import { SLOTS, driverCount, hotspots, locatedRides, recommendZones, zoneDigest } from '../utils/zones.mjs';
 
-// Compagnie d'appartenance : un chauffeur demande à rejoindre une compagnie (liste tenue par l'administrateur),
+// Compagnie d'appartenance : un chauffeur demande à rejoindre une compagnie (nom saisi librement, la compagnie est créée au besoin),
 // l'administrateur approuve, et chaque chauffeur choisit s'il partage ses zones d'appel avec elle (opt-in).
 // Les prévisions « compagnie » sont calculées par le serveur sur les courses des membres approuvés qui partagent,
 // et ne sont publiées que sous forme de zones agrégées, jamais sans au moins MIN_DRIVERS chauffeurs distincts.
@@ -11,6 +11,7 @@ export const MIN_DRIVERS = 3;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const id = value => { if(typeof value !== 'string' || !UUID.test(value)) throw new Error('id'); return value; };
 const name = value => { const v = text(value, 60); if(/[\u0000-\u001f\u007f<>]/.test(v)) throw new Error('nom'); return v; };
+const key = v => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 const iso = now => new Date(now()).toISOString();
 
 export function createCompanyService({ provider, services, now = Date.now }) {
@@ -47,8 +48,18 @@ export function createCompanyService({ provider, services, now = Date.now }) {
    return view(membership, companies);
   },
   /** Choisit une compagnie (statut « en attente » tant que l'administrateur n'a pas approuvé), change le partage, ou quitte (companyId = null). */
-  async updateMembership(user, { companyId, share }) {
-   const { companies, membership } = await mine(user);
+  async updateMembership(user, { companyId, companyName, share }) {
+   let { companies, membership } = await mine(user);
+   if(companyName !== undefined) {
+    // Saisie libre : on retrouve la compagnie du même nom (sans tenir compte des accents ni de la casse), sinon on la crée.
+    const wanted = key(companyName);
+    let company = companies.find(c => key(c.name) === wanted);
+    if(!company) {
+     company = await provider.saveCompany({ company_id: randomUUID(), name: companyName.replace(/\s+/g, ' ').trim(), active: true, created_at: iso(now) });
+     companies = [...companies, company];
+    }
+    companyId = company.company_id;
+   }
    const current = membership && membership.status !== 'none' ? membership : null;
    const base = { driver_email: user.email, company_id: '', status: 'none', share: false, requested_at: '', decided_at: '' };
    if(companyId === null) return view(await provider.saveMembership({ ...base, requested_at: current?.requested_at ?? '' }), companies);
@@ -164,15 +175,16 @@ export function createCompaniesMiddleware({ getUser, service }) {
     return reply(res, 200, { company: await service.setCompanyActive(companyId, active) });
    }
    if(path === '/api/membership') {
-    driver();
+    // Ouvert aussi à l'administrateur : il peut conduire et donc appartenir à une compagnie.
     if(method === 'GET') return reply(res, 200, { membership: await service.myMembership(user) });
     if(method === 'PUT') {
      const body = await jsonBody(req);
      const input = validate(() => {
-      object(body, ['companyId', 'share']);
-      if(body.companyId === undefined && body.share === undefined) throw new Error('vide');
+      object(body, ['companyId', 'companyName', 'share']);
+      if(body.companyId === undefined && body.companyName === undefined && body.share === undefined) throw new Error('vide');
+      if(body.companyName !== undefined && !name(body.companyName).trim()) throw new Error('nom');
       if(body.share !== undefined && typeof body.share !== 'boolean') throw new Error('share');
-      return { companyId: body.companyId === undefined || body.companyId === null ? body.companyId : id(body.companyId), share: body.share };
+      return { companyId: body.companyId === undefined || body.companyId === null ? body.companyId : id(body.companyId), companyName: body.companyName === undefined ? undefined : name(body.companyName), share: body.share };
      });
      return reply(res, 200, { membership: await service.updateMembership(user, input) });
     }

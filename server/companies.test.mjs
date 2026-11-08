@@ -113,6 +113,8 @@ test('routes : droits, validation et paramètres', async () => {
  const { service } = setup();
  const admin = await http(service, { role: 'admin', email: 'a@x.test' });
  const chauffeur = await http(service, driver(1));
+ const chauffeur2 = await http(service, driver(2));
+ const chauffeur3 = await http(service, driver(3));
  try {
   assert.equal((await chauffeur.call('/api/companies', { method: 'POST', body: { name: 'X' } })).status, 403);
   assert.equal((await admin.call('/api/companies', { method: 'POST', body: { name: '' } })).status, 400);
@@ -124,7 +126,12 @@ test('routes : droits, validation et paramètres', async () => {
   assert.equal((await admin.call('/api/companies/pas-un-id', { method: 'PUT', body: { active: false } })).status, 400);
   assert.equal((await chauffeur.call('/api/membership', { method: 'PUT', body: { companyId: id, share: true } })).data.membership.status, 'pending');
   assert.equal((await chauffeur.call('/api/memberships')).status, 403);
-  assert.equal((await admin.call('/api/membership')).status, 403);
+  assert.equal((await admin.call('/api/membership')).status, 200);
+  const free = await chauffeur2.call('/api/membership', { method: 'PUT', body: { companyName: '  Taxi   Été ' } });
+  assert.equal(free.data.membership.status, 'pending');
+  const again = await chauffeur3.call('/api/membership', { method: 'PUT', body: { companyName: 'taxi ete' } });
+  assert.equal(again.data.membership.companyId, free.data.membership.companyId);
+  assert.equal((await chauffeur2.call('/api/membership', { method: 'PUT', body: { companyName: '   ' } })).status, 400);
   const list = await admin.call('/api/memberships');
   assert.equal(list.data.memberships[0].email, 'd1@example.test');
   assert.equal((await admin.call('/api/memberships/decision', { method: 'POST', body: { email: 'd1@example.test', approve: true } })).status, 200);
@@ -133,5 +140,5 @@ test('routes : droits, validation et paramètres', async () => {
   assert.equal((await chauffeur.call('/api/company/zones?slot=minuit')).status, 400);
   assert.equal((await chauffeur.call('/api/company/zones?day=9')).status, 400);
   assert.equal((await admin.call('/api/company/zones')).status, 403);
- } finally { await admin.close(); await chauffeur.close(); }
+ } finally { await admin.close(); await chauffeur.close(); await chauffeur2.close(); await chauffeur3.close(); }
 });

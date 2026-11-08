@@ -27,6 +27,7 @@ export const companyApi = {
   setCompanyActive: (id: string, active: boolean) => call<{ company: Company }>('/api/companies/' + id, 'PUT', { active }).then(r => r.company),
   membership: () => call<{ membership: MyMembership | null }>('/api/membership').then(r => r.membership),
   chooseCompany: (companyId: string | null) => call<{ membership: MyMembership | null }>('/api/membership', 'PUT', { companyId }).then(r => r.membership),
+  chooseCompanyByName: (companyName: string) => call<{ membership: MyMembership | null }>('/api/membership', 'PUT', { companyName }).then(r => r.membership),
   setShare: (share: boolean) => call<{ membership: MyMembership | null }>('/api/membership', 'PUT', { share }).then(r => r.membership),
   memberships: () => call<{ memberships: MembershipRow[] }>('/api/memberships').then(r => r.memberships),
   decide: (email: string, approve: boolean) => call<{ email: string; status: string }>('/api/memberships/decision', 'POST', { email, approve }),
