@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "node --test server/ services/storage.test.mjs utils/stats.test.mjs utils/zones.test.mjs",
     "start": "node server/main.mjs",
+    "datataxi:import": "node --no-warnings server/import-datataxi.mjs",
     "sqlite:sync": "node --no-warnings server/sqlite-sync.mjs",
     "local:migrate": "node --no-warnings server/migrate-local.mjs",
     "typecheck": "tsc --noEmit",
