@@ -84,7 +84,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <div className="h-64 bg-white w-full flex items-center justify-center px-6 pb-10">
-        <img src="/taximanager-logo.svg" alt="Taxi Manager" className="w-full max-w-sm h-44 object-contain" />
+        <img src="/taximanager-logo.png" alt="Taxi Manager" className="w-full max-w-sm h-44 object-contain" />
       </div>
 
       <div className="flex-1 -mt-10 z-20 px-6 pb-6">

@@ -99,7 +99,7 @@ export const Sidebar: React.FC<NavigationProps> = ({ currentPage, onNavigate, on
 
             <div className="flex flex-col items-center gap-3">
 
-              <h1><img src="/taximanager-logo.svg" alt="Taxi Manager" className="w-52 h-28 object-contain" /></h1>
+              <h1><img src="/taximanager-logo.png" alt="Taxi Manager" className="w-52 h-28 object-contain" /></h1>
 
               <div>
 
