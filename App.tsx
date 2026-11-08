@@ -218,7 +218,7 @@ const App: React.FC = () => {
 
                 </button>
 
-                <img src="/taximanager-logo.svg" alt="Taxi Manager" className="w-32 h-16 object-contain" />
+                <img src="/taximanager-logo.png" alt="Taxi Manager" className="w-32 h-16 object-contain" />
 
                 <div className="w-10"></div> {/* Spacer for balance */}
 
