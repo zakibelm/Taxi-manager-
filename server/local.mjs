@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { normalizeEmail } from './store.mjs';
+import { companyKey } from './company-key.mjs';
 
 // Stockage 100 % local (STORAGE=local) : comptes, jetons, sessions, tentatives de connexion, assignations, compagnies et
 // adhésions vivent dans le même fichier SQLite que les courses (SQLITE_PATH). Mêmes interfaces que createN8nStore et que
@@ -75,6 +76,21 @@ const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const ATTEMPT_LIMIT = 5;
 const PLACEHOLDER = { salt: '0'.repeat(48), passwordHash: '0'.repeat(128), authVersion: '0'.repeat(64) };
 
+/**
+ * Compagnies : colonnes `name_key` (nom normalisé, index unique : pas de doublon même si deux demandes arrivent ensemble)
+ * et `created_by` (courriel du créateur par saisie libre, pour le quota). Ajoutées aux bases existantes sans rien perdre.
+ */
+function migrateCompanies(db) {
+ const columns = new Set(db.prepare('PRAGMA table_info(companies)').all().map(c => c.name));
+ if(!columns.has('name_key')) db.exec("ALTER TABLE companies ADD COLUMN name_key TEXT NOT NULL DEFAULT ''");
+ if(!columns.has('created_by')) db.exec("ALTER TABLE companies ADD COLUMN created_by TEXT NOT NULL DEFAULT ''");
+ const fill = db.prepare('UPDATE companies SET name_key = ? WHERE company_id = ?');
+ for(const c of db.prepare("SELECT company_id, name FROM companies WHERE name_key = ''").all()) fill.run(companyKey(c.name), c.company_id);
+ // Des doublons déjà présents empêcheraient l'index : on le signale sans bloquer le démarrage.
+ try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS companies_name_key ON companies (name_key)'); }
+ catch(error) { console.error(`[compagnies] index unique impossible (doublons à fusionner) : ${error.message}`); }
+}
+
 /** Ouvre (et crée au besoin) la base locale. Même fichier que les courses ; ':memory:' pour les tests. */
 export function openLocalDb(file) {
  if(file !== ':memory:') {
@@ -84,6 +100,7 @@ export function openLocalDb(file) {
  const db = new DatabaseSync(file);
  db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;');
  db.exec(SCHEMA);
+ migrateCompanies(db);
  if(file !== ':memory:') { try { chmodSync(file, 0o600); } catch { /* best effort */ } }
  return db;
 }
@@ -208,13 +225,19 @@ export function createLocalAssignmentsProvider(db, { now = Date.now } = {}) {
  const out = r => ({ ...r, id: r.assignment_id });
  const mine = db.prepare('SELECT * FROM assignments WHERE driver_email = ? ORDER BY date');
  const all = db.prepare('SELECT * FROM assignments ORDER BY date');
- const insert = db.prepare('INSERT OR REPLACE INTO assignments (assignment_id, driver_email, type, date, description, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+ // Pas d'écrasement : un identifiant déjà pris par un autre chauffeur est refusé (409), le même propriétaire retrouve la sienne sans doublon.
+ const insert = db.prepare('INSERT OR IGNORE INTO assignments (assignment_id, driver_email, type, date, description, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+ const byId = db.prepare('SELECT * FROM assignments WHERE assignment_id = ?');
  const remove = db.prepare('DELETE FROM assignments WHERE assignment_id = ? AND driver_email = ?');
  return {
   async list(user) { return (user.role === 'admin' ? all.all() : mine.all(user.email)).map(out); },
   async create(data, id) {
    const row = { assignment_id: id || randomUUID(), driver_email: data.driver_email, type: String(data.type ?? ''), date: String(data.date), description: String(data.description ?? ''), created_at: new Date(now()).toISOString() };
-   insert.run(row.assignment_id, row.driver_email, row.type, row.date, row.description, row.created_at);
+   if(insert.run(row.assignment_id, row.driver_email, row.type, row.date, row.description, row.created_at).changes === 0) {
+    const existing = byId.get(row.assignment_id);
+    if(existing?.driver_email !== row.driver_email) throw Object.assign(new Error('Identifiant déjà utilisé.'), { status: 409 });
+    return out(existing);
+   }
    return out(row);
   },
   async delete(id, owner) { remove.run(id, owner); },
@@ -225,17 +248,17 @@ export function createLocalAssignmentsProvider(db, { now = Date.now } = {}) {
 
 /** Compagnies et adhésions : même interface que createCompaniesProvider. */
 export function createLocalCompaniesProvider(db) {
- const company = r => ({ company_id: r.company_id, name: r.name, active: r.active === 1, created_at: r.created_at });
+ const company = r => ({ company_id: r.company_id, name: r.name, active: r.active === 1, created_at: r.created_at, created_by: r.created_by ?? '' });
  const membership = r => ({ driver_email: r.driver_email, company_id: r.company_id, status: r.status, share: r.share === 1, requested_at: r.requested_at, decided_at: r.decided_at });
  const allCompanies = db.prepare('SELECT * FROM companies');
  const allMemberships = db.prepare('SELECT * FROM memberships');
- const saveCompany = db.prepare(`INSERT INTO companies (company_id, name, active, created_at) VALUES (?, ?, ?, ?)
-  ON CONFLICT(company_id) DO UPDATE SET name=excluded.name, active=excluded.active`);
+ const saveCompany = db.prepare(`INSERT INTO companies (company_id, name, name_key, active, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?)
+  ON CONFLICT(company_id) DO UPDATE SET name=excluded.name, name_key=excluded.name_key, active=excluded.active`);
  const saveMembership = db.prepare(`INSERT INTO memberships (driver_email, company_id, status, share, requested_at, decided_at) VALUES (?, ?, ?, ?, ?, ?)
   ON CONFLICT(driver_email) DO UPDATE SET company_id=excluded.company_id, status=excluded.status, share=excluded.share, requested_at=excluded.requested_at, decided_at=excluded.decided_at`);
  return {
   async companies() { return allCompanies.all().map(company); },
-  async saveCompany(c) { saveCompany.run(c.company_id, c.name, c.active === true ? 1 : 0, String(c.created_at ?? '')); return c; },
+  async saveCompany(c) { saveCompany.run(c.company_id, c.name, companyKey(c.name), c.active === true ? 1 : 0, String(c.created_at ?? ''), String(c.created_by ?? '')); return c; },
   async memberships() { return allMemberships.all().map(membership); },
   async saveMembership(m) {
    saveMembership.run(m.driver_email, String(m.company_id ?? ''), String(m.status ?? 'none'), m.share === true ? 1 : 0, String(m.requested_at ?? ''), String(m.decided_at ?? ''));
@@ -251,7 +274,7 @@ export function createLocalServicesProvider(rideStore, { now = Date.now } = {}) 
   async create(data, id) {
    const stamp = new Date(now()).toISOString();
    const row = { ...data, service_id: id || randomUUID(), created_at: stamp, updated_at: stamp };
-   rideStore.upsert(row);
+   if(!rideStore.upsert(row)) throw Object.assign(new Error('Identifiant déjà utilisé.'), { status: 409 });
    return rideStore.get(row.service_id);
   },
   async delete(id, owner) { rideStore.remove(id, owner); },

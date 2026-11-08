@@ -134,7 +134,7 @@ test('compagnies : booléens conservés, adhésion remplacée par chauffeur', as
  const p = createLocalCompaniesProvider(openLocalDb(':memory:'));
  await p.saveCompany({ company_id: 'c1', name: 'Co-op', active: true, created_at: 'd' });
  await p.saveCompany({ company_id: 'c1', name: 'Co-op', active: false, created_at: 'autre' });
- assert.deepEqual(await p.companies(), [{ company_id: 'c1', name: 'Co-op', active: false, created_at: 'd' }]);
+ assert.deepEqual(await p.companies(), [{ company_id: 'c1', name: 'Co-op', active: false, created_at: 'd', created_by: '' }]);
  await p.saveMembership({ driver_email: 'a@x.test', company_id: 'c1', status: 'pending', share: true, requested_at: 'r', decided_at: '' });
  await p.saveMembership({ driver_email: 'a@x.test', company_id: 'c1', status: 'approved', share: true, requested_at: 'r', decided_at: 'd' });
  assert.deepEqual(await p.memberships(), [{ driver_email: 'a@x.test', company_id: 'c1', status: 'approved', share: true, requested_at: 'r', decided_at: 'd' }]);

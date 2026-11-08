@@ -50,8 +50,9 @@ export function openRideStore(file = ':memory:') {
  let version = 0;   // incrémenté à chaque écriture : invalide les caches de calcul
  const upsert = db.prepare(`INSERT INTO rides (service_id, driver_email, type, amount, date, description, origin_lat, origin_lng, created_at, updated_at)
   VALUES (:service_id, :driver_email, :type, :amount, :date, :description, :origin_lat, :origin_lng, :created_at, :updated_at)
-  ON CONFLICT(service_id) DO UPDATE SET driver_email=excluded.driver_email, type=excluded.type, amount=excluded.amount, date=excluded.date,
-   description=excluded.description, origin_lat=excluded.origin_lat, origin_lng=excluded.origin_lng, updated_at=excluded.updated_at`);
+  ON CONFLICT(service_id) DO UPDATE SET type=excluded.type, amount=excluded.amount, date=excluded.date,
+   description=excluded.description, origin_lat=excluded.origin_lat, origin_lng=excluded.origin_lng, updated_at=excluded.updated_at
+   WHERE rides.driver_email = excluded.driver_email`);   // le propriétaire d'une course ne change jamais
  const removeOne = db.prepare('DELETE FROM rides WHERE service_id = ? AND driver_email = ?');
  const removeDriver = db.prepare('DELETE FROM rides WHERE driver_email = ?');
  const byDriver = db.prepare('SELECT * FROM rides WHERE driver_email = ? ORDER BY date DESC');
@@ -64,7 +65,8 @@ export function openRideStore(file = ':memory:') {
  const getMeta = db.prepare('SELECT value FROM meta WHERE key = ?');
  return {
   get version() { return version; },
-  upsert(ride) { upsert.run(toRow(ride)); version++; },
+  /** Insère ou met à jour. Retourne false (rien modifié) si l'identifiant appartient déjà à un autre chauffeur. */
+  upsert(ride) { const r = upsert.run(toRow(ride)); version++; return r.changes > 0; },
   /** Copie en bloc dans une transaction (rattrapage, copie de l'historique). */
   upsertMany(rides) {
    db.exec('BEGIN');

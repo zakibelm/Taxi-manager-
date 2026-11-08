@@ -11,6 +11,8 @@ export function createMirroredServices({ primary, store, log = console.error }) 
    return [...recent, ...older.filter(r => !seen.has(r.id))];
   },
   async create(data, id) {
+   // Contrôle sur la base elle-même (pas sur la liste du chauffeur) : un identifiant d'un autre chauffeur est refusé avant tout envoi à n8n.
+   if(id) { const owner = store.get(id); if(owner && owner.driver_email !== data.driver_email) throw Object.assign(new Error('Identifiant déjà utilisé.'), { status: 409 }); }
    const created = await primary.create(data, id);
    safe('copie de la course', () => store.upsert({ ...data, ...created, service_id: created?.service_id ?? created?.id ?? id }));
    return created;

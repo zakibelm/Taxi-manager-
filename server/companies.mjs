@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { HttpError, jsonBody, reply, sameOrigin, validate } from './http.mjs';
 import { object, text } from './validation.mjs';
+import { companyKey } from './company-key.mjs';
 import { SLOTS, driverCount, hotspots, locatedRides, recommendZones, zoneDigest } from '../utils/zones.mjs';
 
 // Compagnie d'appartenance : un chauffeur demande à rejoindre une compagnie (nom saisi librement, la compagnie est créée au besoin),
@@ -11,7 +12,6 @@ export const MIN_DRIVERS = 3;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const id = value => { if(typeof value !== 'string' || !UUID.test(value)) throw new Error('id'); return value; };
 const name = value => { const v = text(value, 60); if(/[\u0000-\u001f\u007f<>]/.test(v)) throw new Error('nom'); return v; };
-const key = v => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 const iso = now => new Date(now()).toISOString();
 
 export function createCompanyService({ provider, services, now = Date.now }) {
@@ -24,6 +24,33 @@ export function createCompanyService({ provider, services, now = Date.now }) {
   const company = find(companies, m.company_id);
   return { companyId: m.company_id, companyName: company?.name ?? 'Compagnie retirée', status: m.status, share: m.share === true };
  };
+ // « Chercher puis créer » en un seul passage à la fois (n8n n'a pas de contrainte unique) ; SQLite ajoute son index unique en secours.
+ let lock = Promise.resolve();
+ const exclusive = fn => { const run = lock.then(fn); lock = run.catch(() => {}); return run; };
+ // Quota : un compte non administrateur ne crée qu'une compagnie par saisie libre. Le créateur est conservé dans la base locale ;
+ // en mode n8n (table sans cette colonne), le compte en mémoire du processus sert de garde-fou.
+ const createdInMemory = new Map();
+ async function resolveByName(user, rawName) {
+  const wanted = companyKey(rawName);
+  const find_ = list => list.find(c => companyKey(c.name) === wanted);
+  const existing = find_(await provider.companies());
+  if(existing) return existing;
+  if(user.role !== 'admin') {
+   const mineCount = (await provider.companies()).filter(c => c.created_by === user.email).length;
+   if(mineCount >= 1 || (createdInMemory.get(user.email) ?? 0) >= 1) {
+    throw new HttpError(409, 'Vous avez déjà ajouté une compagnie. Choisissez-en une qui existe déjà en écrivant son nom exactement, ou demandez à l’administrateur de l’ajouter.');
+   }
+  }
+  const created = { company_id: randomUUID(), name: rawName.replace(/\s+/g, ' ').trim(), active: true, created_at: iso(now), created_by: user.email };
+  try { await provider.saveCompany(created); }
+  catch(error) {
+   const raced = find_(await provider.companies());   // un autre processus vient de la créer : on la reprend
+   if(raced) return raced;
+   throw error;
+  }
+  createdInMemory.set(user.email, (createdInMemory.get(user.email) ?? 0) + 1);
+  return created;
+ }
  async function mine(user) {
   const [companies, memberships] = await Promise.all([provider.companies(), provider.memberships()]);
   return { companies, membership: memberships.find(m => m.driver_email === user.email) ?? null };
@@ -35,7 +62,7 @@ export function createCompanyService({ provider, services, now = Date.now }) {
   },
   async createCompany(name_) {
    const all = await provider.companies();
-   if(all.some(c => c.name.toLowerCase() === name_.toLowerCase())) throw new HttpError(409, 'Cette compagnie existe déjà.');
+   if(all.some(c => companyKey(c.name) === companyKey(name_))) throw new HttpError(409, 'Cette compagnie existe déjà.');
    return publicCompany(await provider.saveCompany({ company_id: randomUUID(), name: name_, active: true, created_at: iso(now) }));
   },
   async setCompanyActive(companyId, active) {
@@ -51,13 +78,9 @@ export function createCompanyService({ provider, services, now = Date.now }) {
   async updateMembership(user, { companyId, companyName, share }) {
    let { companies, membership } = await mine(user);
    if(companyName !== undefined) {
-    // Saisie libre : on retrouve la compagnie du même nom (sans tenir compte des accents ni de la casse), sinon on la crée.
-    const wanted = key(companyName);
-    let company = companies.find(c => key(c.name) === wanted);
-    if(!company) {
-     company = await provider.saveCompany({ company_id: randomUUID(), name: companyName.replace(/\s+/g, ' ').trim(), active: true, created_at: iso(now) });
-     companies = [...companies, company];
-    }
+    // Saisie libre : on retrouve la compagnie du même nom (sans accents ni casse), sinon on la crée.
+    const company = await exclusive(() => resolveByName(user, companyName));
+    companies = [...companies.filter(c => c.company_id !== company.company_id), company];
     companyId = company.company_id;
    }
    const current = membership && membership.status !== 'none' ? membership : null;
@@ -91,6 +114,8 @@ export function createCompanyService({ provider, services, now = Date.now }) {
   async pool(user) {
    const { companies, membership } = await mine(user);
    if(!membership || membership.status !== 'approved') throw new HttpError(403, 'Votre appartenance à une compagnie doit d’abord être approuvée.');
+   // Une compagnie désactivée ferme l'accès, même aux membres déjà approuvés.
+   if(find(companies, membership.company_id)?.active !== true) throw new HttpError(403, 'Cette compagnie est désactivée.');
    const memberships = await provider.memberships();
    const sharing = new Set(memberships.filter(m => m.company_id === membership.company_id && m.status === 'approved' && m.share === true).map(m => m.driver_email));
    // Avec la copie SQLite : lecture locale, limitée aux chauffeurs qui partagent, avec un cache court invalidé à chaque écriture.
