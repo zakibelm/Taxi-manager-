@@ -51,8 +51,8 @@ const Forecast: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${level.cls}`}>{level.label}</span>
           <span className="text-sm text-slate-600">
-            {data.days} journées analysées ({data.events.toLocaleString('fr-CA')} appels), jusqu’au {shortDate(data.asOf)}.
-            {data.reliability.errorPct !== null && <> Écart moyen sur l’historique : environ {data.reliability.errorPct} %.</>}
+            {data.days} journées analysées ({data.events.toLocaleString('fr-CA')} appels), jusqu’au {shortDate(data.asOf)}
+            {data.reliability.errorPct !== null && <> · écart moyen sur l’historique : environ {data.reliability.errorPct} %.</>}
           </span>
         </div>
         {data.reliability.level !== 'bonne' && (
@@ -74,7 +74,7 @@ const Forecast: React.FC = () => {
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-xs text-slate-400">Nombre d’appels attendu par jour (zone typique entre parenthèses).</p>
+        <p className="mt-3 text-xs text-slate-400">Nombre d’appels attendu par jour (plage habituelle entre parenthèses).</p>
       </section>
 
       <section aria-label="Heures de pointe" className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100">
