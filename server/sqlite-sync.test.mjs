@@ -69,3 +69,18 @@ test('liste fusionnée : récent depuis n8n + ancien depuis SQLite, sans doublon
  await services.delete('old', 'a@x.test');
  assert.equal(store.count(), 2);
 });
+
+import { run } from './sqlite-sync.mjs';
+
+test('STORAGE=local : la tâche nocturne ne relit pas n8n (une course supprimée ne revient pas) mais sauvegarde', async () => {
+ const n8n = createFakeN8n({ now: () => 0 });
+ n8n.db.services.push(row('fantome'));
+ const dir = mkdtempSync(path.join(tmpdir(), 'tm-sync-'));
+ const env = { ...n8n.env, STORAGE: 'local', SQLITE_PATH: path.join(dir, 'r.db'), SQLITE_BACKUP_DIR: path.join(dir, 'bk'), N8N_RETENTION_DAYS: '7' };
+ await run(env, n8n.fetcher);
+ const store = openRideStore(env.SQLITE_PATH);
+ assert.equal(store.count(), 0, 'rien copié depuis n8n');
+ store.close();
+ assert.equal(n8n.db.calls.length, 0, 'aucun appel à n8n (ni lecture ni purge)');
+ assert.equal(readdirSync(path.join(dir, 'bk')).length, 1, 'sauvegarde faite');
+});
