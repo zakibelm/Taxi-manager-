@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supprimer mon compte — Taxi Manager</title>
+<meta name="description" content="Supprimez votre compte Taxi Manager et toutes vos données.">
+<style>
+  :root { --text:#0f172a; --muted:#475569; --line:#e2e8f0; --accent:#dc2626; --bg:#f8fafc; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--text); background:var(--bg); }
+  main { max-width: 560px; margin: 0 auto; padding: 32px 16px 64px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:20px; padding:28px 24px; }
+  h1 { font-size:1.6rem; margin:0 0 8px; }
+  .muted { color:var(--muted); font-size:.92rem; }
+  label { display:block; font-size:.85rem; color:var(--muted); margin-top:16px; }
+  input[type=email], input[type=password] { display:block; width:100%; margin-top:4px; padding:10px 12px; font:inherit; border:1px solid var(--line); border-radius:12px; }
+  .check { display:flex; gap:8px; align-items:flex-start; color:var(--text); font-size:.95rem; }
+  button { margin-top:20px; padding:12px 20px; font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:14px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .msg { margin-top:16px; padding:12px 14px; border-radius:12px; font-size:.95rem; }
+  .err { background:#fef2f2; color:#b91c1c; }
+  .ok { background:#f0fdf4; color:#166534; }
+  a { color: var(--accent); }
+  [hidden] { display:none; }
+</style>
+</head>
+<body>
+<main>
+<div class="card">
+  <h1>Supprimer mon compte Taxi Manager</h1>
+  <p class="muted">Cette page efface définitivement votre compte (nom, courriel, mot de passe), toutes vos courses, vos assignations, votre appartenance à une compagnie et vos sessions. Elle est irréversible. Si vous avez perdu votre mot de passe, <a href="/?mode=forgot">réinitialisez-le d’abord</a>, ou écrivez à <a href="mailto:zakibelm66@gmail.com?subject=Suppression%20de%20compte%20Taxi%20Manager">zakibelm66@gmail.com</a> depuis l’adresse du compte.</p>
+  <form id="form" novalidate>
+    <div id="error" class="msg err" role="alert" hidden></div>
+    <label for="email">Courriel du compte
+      <input id="email" type="email" autocomplete="username" maxlength="254" required>
+    </label>
+    <label for="password">Mot de passe
+      <input id="password" type="password" autocomplete="current-password" maxlength="256" required>
+    </label>
+    <label class="check"><input id="sure" type="checkbox"> Je comprends que mon compte et mes données seront supprimés définitivement.</label>
+    <button id="submit" type="submit" disabled>Supprimer définitivement mon compte</button>
+  </form>
+  <div id="done" class="msg ok" role="status" hidden>Votre compte et vos données ont été supprimés. Vous pouvez fermer cette page.</div>
+  <p class="muted" style="margin-top:24px"><a href="/confidentialite/">Politique de confidentialité</a></p>
+</div>
+</main>
+<script src="suppression.js"></script>
+</body>
+</html>

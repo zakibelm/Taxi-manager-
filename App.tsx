@@ -277,7 +277,8 @@ const App: React.FC = () => {
                     {currentPage === 'profile' && (
                         <Profile user={session.user} welcome={welcomeProfile}
                           onSaved={() => { if (welcomeProfile) { setWelcomeProfile(false); setCurrentPage('dashboard'); } }}
-                          onSkip={() => { setWelcomeProfile(false); setCurrentPage('dashboard'); }} />
+                          onSkip={() => { setWelcomeProfile(false); setCurrentPage('dashboard'); }}
+                          onDeleted={session.mode === 'demo' ? undefined : () => { setSession(null); setCurrentPage('dashboard'); setIsSidebarOpen(false); }} />
                     )}
 
                     {currentPage === 'chat' && (

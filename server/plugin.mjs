@@ -9,6 +9,7 @@ import { createN8nStore } from './store.mjs';
 import { createCompaniesMiddleware, createCompanyService } from './companies.mjs';
 import { createServicesMiddleware } from './services.mjs';
 import { createServiceTypesMiddleware } from './service-types.mjs';
+import { createAccountDeletionMiddleware } from './account-deletion.mjs';
 import { createRegistrationMiddleware } from './registration.mjs';
 import { reply } from './http.mjs';
 import { openRideStore } from './sqlite.mjs';
@@ -40,6 +41,7 @@ export function createApiMiddlewares(env, { fetcher = fetch } = {}) {
  };
  return [
   securityHeaders(env), privateFiles, health, registration, auth,
+  createAccountDeletionMiddleware({ store, auth, services, env }),
   createServicesMiddleware({ getUser: auth.getUser, provider: services, env }),
   createAssignmentsMiddleware({ getUser: auth.getUser, provider: assignments, env }),
   createCompaniesMiddleware({ getUser: auth.getUser, service: companies }),
