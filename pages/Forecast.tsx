@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchForecast, Forecast as ForecastData, ForecastSlot } from '../services/forecast';
+import ForecastMap from '../components/ForecastMap';
 
 const DAYS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const SLOTS: [ForecastSlot, string][] = [['0-6', '0 h – 6 h'], ['6-10', '6 h – 10 h'], ['10-14', '10 h – 14 h'], ['14-18', '14 h – 18 h'], ['18-24', '18 h – 24 h']];
@@ -11,12 +12,13 @@ const LEVEL = {
 const shortDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
 /** Page « Prévisions » : volume d'appels attendu pour les 7 prochains jours, heures de pointe et zones à viser (journal DataTaxi). */
-const Forecast: React.FC = () => {
+const Forecast: React.FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
   const [data, setData] = useState<ForecastData | null>(null);
   const [error, setError] = useState('');
   const [kind, setKind] = useState<'weekday' | 'weekend'>('weekday');
 
-  useEffect(() => { fetchForecast().then(setData).catch(e => setError(e.message)); }, []);
+  const load = () => fetchForecast().then(setData).catch(e => setError(e.message));
+  useEffect(() => { load(); }, []);
 
   const header = (
     <div className="px-2">
@@ -59,6 +61,8 @@ const Forecast: React.FC = () => {
           <p className="mt-2 text-sm text-slate-500">Les totaux journaliers sont des ordres de grandeur ; la précision augmente à chaque semaine de données ajoutée.</p>
         )}
       </section>
+
+      <ForecastMap data={data} isAdmin={isAdmin} onChanged={load} />
 
       <section aria-label="7 prochains jours" className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100">
         <h3 className="mb-3 font-semibold text-slate-900">7 prochains jours</h3>

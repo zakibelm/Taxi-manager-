@@ -1,4 +1,4 @@
-import { HttpError, reply, sameOrigin } from './http.mjs';
+import { HttpError, jsonBody, reply, sameOrigin } from './http.mjs';
 
 // Prévisions de demande tirées du journal de répartition (table dispatch_events, alimentée par DataTaxi).
 //   GET /api/forecast -> volume d'appels attendu pour les 7 prochains jours, profil horaire, heures de pointe, zones par plage.
@@ -8,6 +8,9 @@ import { HttpError, reply, sameOrigin } from './http.mjs';
 // Seuls des agrégats sortent (aucun véhicule, aucun texte brut, aucune adresse) ; la journée en cours est exclue (incomplète).
 export const SLOTS = [['0-6', 0, 6], ['6-10', 6, 10], ['10-14', 10, 14], ['14-18', 14, 18], ['18-24', 18, 24]];
 export const MIN_DAYS = 7;
+export const ZONE_ID = /^\d{1,3}$/;
+// Cadre du Québec habité : attrape une latitude et une longitude inversées ou un clic hors de la région.
+export const BOUNDS = { lat: [44, 53], lng: [-80, -57] };
 const HORIZON = 7;
 
 const isWeekend = dow => dow === 0 || dow === 6;
@@ -25,7 +28,7 @@ export function localDate(now, timeZone = 'America/Toronto') {
 }
 
 /** Fonction pure : lignes de dispatch -> prévision. `today` = date locale du jour (AAAA-MM-JJ). */
-export function buildForecast(rows, today) {
+export function buildForecast(rows, today, positions = {}) {
  const perDay = new Map();
  for(const r of rows) {
   if(r.trip_date >= today) continue; // journée en cours ou future : incomplète
@@ -69,7 +72,9 @@ export function buildForecast(rows, today) {
    const tot = new Map();
    for(const d of ds) for(const [z, n] of perDay.get(d).zones[si]) tot.set(z, (tot.get(z) ?? 0) + n);
    const sum = [...tot.values()].reduce((a, b) => a + b, 0);
-   out[key] = [...tot].sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0])).slice(0, 4).map(([zone, n]) => ({ zone, share: Math.round(100 * n / sum) }));
+   const hoursInSlot = SLOTS[si][2] - SLOTS[si][1];
+   out[key] = [...tot].sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0])).slice(0, 8)
+    .map(([zone, n]) => ({ zone, share: Math.round(100 * n / sum), perHour: Math.round(10 * n / ds.length / hoursInSlot) / 10 }));
   });
   return out;
  };
@@ -81,24 +86,38 @@ export function buildForecast(rows, today) {
   ready: true, asOf: dates.at(-1), days: dates.length, events: dates.reduce((a, d) => a + counts(d), 0),
   method: 'median-by-day-type', reliability: { errorPct, level }, stats, daily, hourly,
   peaks: { weekday: peaks('weekday'), weekend: peaks('weekend') },
-  zones: { weekday: zonesFor(false), weekend: zonesFor(true) }
+  zones: { weekday: zonesFor(false), weekend: zonesFor(true) }, positions
  };
 }
 
 export function createForecastMiddleware({ getUser, store, env = process.env, now = () => new Date() }) {
  let cache = { key: '', value: null };
+ const coord = (v, [lo, hi]) => { if(typeof v !== 'number' || !Number.isFinite(v) || v < lo || v > hi) throw new HttpError(400, 'Position hors de la région.'); return Math.round(v * 1e5) / 1e5; };
  return async (req, res, next) => {
   const url = new URL(req.url, 'http://local');
-  if(url.pathname !== '/api/forecast') return next();
+  const zoneRoute = /^\/api\/forecast\/zones\/([^/]+)$/.exec(url.pathname);
+  if(url.pathname !== '/api/forecast' && !zoneRoute) return next();
   try {
    const user = await getUser(req);
    if(!user) throw new HttpError(401, 'Connexion requise.');
    if(url.search) throw new HttpError(400, 'Paramètres non autorisés.');
    sameOrigin(req);
+   if(zoneRoute) {
+    // Placer / retirer une zone sur la carte : administrateur seulement (une position fausse fausserait la carte de tous).
+    if(user.role !== 'admin') throw new HttpError(403, 'Réservé à l’administrateur.');
+    const zone = zoneRoute[1];
+    if(!ZONE_ID.test(zone)) throw new HttpError(400, 'Zone invalide.');
+    if(req.method === 'DELETE') { store.removeZone(zone); return reply(res, 200, { ok: true }); }
+    if(req.method !== 'PUT') throw new HttpError(405, 'Méthode non autorisée.');
+    const body = await jsonBody(req);
+    const lat = coord(body?.lat, BOUNDS.lat), lng = coord(body?.lng, BOUNDS.lng);
+    store.setZone(zone, lat, lng);
+    return reply(res, 200, { ok: true, zone, lat, lng });
+   }
    if(req.method !== 'GET') throw new HttpError(405, 'Méthode non autorisée.');
    const today = localDate(now(), env.APP_TIMEZONE || 'America/Toronto');
    const key = `${today}:${store.version}:${store.count()}`; // recalcul seulement si le jour ou les données ont changé
-   if(cache.key !== key) cache = { key, value: buildForecast(store.listSince('0000-00-00'), today) };
+   if(cache.key !== key) cache = { key, value: buildForecast(store.listSince('0000-00-00'), today, store.zonePositions()) };
    return reply(res, 200, cache.value);
   } catch(error) { reply(res, error.status || 500, error.status ? { error: error.message } : { error: 'Erreur interne.' }); }
  };

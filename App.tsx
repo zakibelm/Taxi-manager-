@@ -270,7 +270,7 @@ const App: React.FC = () => {
 
                     {currentPage === 'analysis' && <Analysis services={services} />}
 
-                    {currentPage === 'forecast' && <Forecast />}
+                    {currentPage === 'forecast' && <Forecast isAdmin={session.user.role === 'admin'} />}
 
                     {currentPage === 'calendar' && (
                         <Calendar assignments={assignments} serviceTypes={serviceTypes} onServiceAdded={refreshServices} onAssignmentsChanged={refreshAssignments} onTypeCreated={addLocalType} />

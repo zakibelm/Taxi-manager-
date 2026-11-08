@@ -103,3 +103,35 @@ test('route : connexion requise, GET seulement, sans paramètres, origine contr�
   assert.equal((await s.call('/autre')).status, 404);
  } finally { s.close(); }
 });
+
+test('zones : perHour par plage horaire et jusqu’à 8 zones', () => {
+ const f = buildForecast(rows, '2026-10-28');
+ const z = f.zones.weekday['14-18'][0];
+ assert.equal(z.zone, '1');
+ assert.ok(z.perHour > 0);
+ assert.deepEqual(f.positions, {});
+});
+
+test('positions de zones : l’administrateur place et retire, les autres lisent seulement', async () => {
+ const json = (body, method = 'PUT') => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+ const driver = await serve({ id: 'd', email: 'd@b.c', role: 'chauffeur' });
+ try {
+  assert.equal((await driver.call('/api/forecast/zones/12', json({ lat: 45.7, lng: -73.6 }))).status, 403);
+  assert.equal((await driver.call('/api/forecast/zones/12', { method: 'DELETE' })).status, 403);
+ } finally { driver.close(); }
+ const admin = await serve({ id: 'a', email: 'a@b.c', role: 'admin' });
+ try {
+  assert.equal((await admin.call('/api/forecast/zones/12', json({ lat: 45.7, lng: -73.6 }))).status, 200);
+  assert.equal((await admin.call('/api/forecast/zones/1', json({ lat: 45.71234567, lng: -73.64 }))).body.lat, 45.71235);
+  assert.deepEqual((await admin.call()).body.positions['12'], { lat: 45.7, lng: -73.6 });
+  // refus : zone invalide, hors région, valeurs inversées / non numériques, méthode
+  assert.equal((await admin.call('/api/forecast/zones/abc', json({ lat: 45.7, lng: -73.6 }))).status, 400);
+  assert.equal((await admin.call('/api/forecast/zones/5', json({ lat: -73.6, lng: 45.7 }))).status, 400);
+  assert.equal((await admin.call('/api/forecast/zones/5', json({ lat: '45.7', lng: -73.6 }))).status, 400);
+  assert.equal((await admin.call('/api/forecast/zones/5', json({ lat: 10, lng: -73.6 }))).status, 400);
+  assert.equal((await admin.call('/api/forecast/zones/5', { method: 'POST' })).status, 405);
+  assert.equal((await admin.call('/api/forecast/zones/12', { method: 'DELETE' })).status, 200);
+  assert.equal((await admin.call()).body.positions['12'], undefined);
+  assert.ok((await admin.call()).body.positions['1']);
+ } finally { admin.close(); }
+});

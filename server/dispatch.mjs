@@ -26,6 +26,13 @@ CREATE TABLE IF NOT EXISTS dispatch_events (
 );
 CREATE INDEX IF NOT EXISTS dispatch_date ON dispatch_events (trip_date, trip_time);
 CREATE INDEX IF NOT EXISTS dispatch_zone ON dispatch_events (departure_zone, trip_date);
+-- Position d'une zone de répartition sur la carte (placée une fois par l'administrateur : le journal ne contient aucune coordonnée).
+CREATE TABLE IF NOT EXISTS dispatch_zones (
+ zone       TEXT PRIMARY KEY,
+ lat        REAL NOT NULL,
+ lng        REAL NOT NULL,
+ updated_at TEXT NOT NULL DEFAULT ''
+);
 `;
 
 const FIELDS = ['trip_id', 'trip_date', 'trip_time', 'observed_at', 'departure_zone', 'departure_address', 'destination_zone',
@@ -69,8 +76,15 @@ export function openDispatchStore(file = ':memory:') {
  const one = db.prepare('SELECT * FROM dispatch_events WHERE trip_id = ?');
  const count = db.prepare('SELECT COUNT(*) AS n FROM dispatch_events');
  const since = db.prepare('SELECT * FROM dispatch_events WHERE trip_date >= ? ORDER BY trip_date, trip_time');
+ const zoneRows = db.prepare('SELECT zone, lat, lng FROM dispatch_zones');
+ const zoneSet = db.prepare('INSERT INTO dispatch_zones (zone, lat, lng, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(zone) DO UPDATE SET lat=excluded.lat, lng=excluded.lng, updated_at=excluded.updated_at');
+ const zoneDel = db.prepare('DELETE FROM dispatch_zones WHERE zone = ?');
  return {
   get version() { return version; },
+  /** Positions des zones : { '12': { lat, lng }, … }. */
+  zonePositions() { return Object.fromEntries(zoneRows.all().map(r => [r.zone, { lat: r.lat, lng: r.lng }])); },
+  setZone(zone, lat, lng, now = new Date().toISOString()) { zoneSet.run(zone, lat, lng, now); version++; },
+  removeZone(zone) { zoneDel.run(zone); version++; },
   /** Copie en bloc dans une transaction ; rejoue sans doublon (clé = trip_id). Renvoie le nombre de lignes écrites. */
   upsertMany(rows, now = new Date().toISOString()) {
    db.exec('BEGIN');
