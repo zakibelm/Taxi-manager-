@@ -19,7 +19,7 @@ const Profile: React.FC<ProfileProps> = ({ user, welcome, onSaved, onSkip, onDel
   const [companies, setCompanies] = useState<Company[] | null>(null);
   const [membership, setMembership] = useState<MyMembership | null>(null);
   const [busy, setBusy] = useState(false);
-  const needsCompany = user.role !== 'admin';
+  const needsCompany = true;
 
   useEffect(() => {
     if (!needsCompany) return;
