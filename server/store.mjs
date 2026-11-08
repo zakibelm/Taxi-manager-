@@ -41,6 +41,8 @@ export function createN8nStore(client, env = process.env) {
    async setPassword(id, { salt, passwordHash, authVersion }) {
     await client.call('accounts/password', { method: 'POST', body: { id, salt, passwordHash, authVersion } });
    },
+   /** Suppression de compte : n8n efface le compte, ses courses, assignations, adhésion, jetons et sessions. */
+   async erase(acc) { await client.call('account/erase', { method: 'POST', body: { id: acc.id, email: acc.email } }); },
    /** Envoi par n8n (SMTP) ; n8n limite à un courriel toutes les 5 minutes par compte. */
    async mail(id, subject, message) { await client.call('accounts/email', { method: 'POST', body: { id, subject, message } }); }
   },

@@ -38,6 +38,16 @@ export function createFakeN8n({ token = 'test-n8n-token', header = 'x-drivepilot
    if(a) { a.last_mail_at = now(); db.outbox.push({ to: a.email, subject: body.subject, message: body.message }); }
    return ok({});
   },
+  'POST account/erase': ({ body }) => {
+   const email = String(body.email || '').toLowerCase();
+   db.accounts = db.accounts.filter(a => a.account_id !== body.id);
+   db.tokens = db.tokens.filter(t => t.account_id !== body.id);
+   db.sessions = db.sessions.filter(s => { const v = JSON.parse(s.user_json); return String((v.user || v).id) !== body.id; });
+   db.services = db.services.filter(x => x.driver_email !== email);
+   db.assignments = db.assignments.filter(x => x.driver_email !== email);
+   db.memberships = db.memberships.filter(x => x.driver_email !== email);
+   return ok({});
+  },
   'POST auth/session/create': ({ body: b }) => {
    if(!/^[a-f0-9]{64}$/.test(b.hash) || !(b.expires > now()) || b.expires > now() + 28900000) return fail(400);
    db.sessions.push({ session_hash: b.hash, user_json: JSON.stringify(b.authVersion ? { user: b.user, authVersion: b.authVersion } : b.user), expires_at: b.expires });
