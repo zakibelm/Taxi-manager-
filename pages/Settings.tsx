@@ -115,7 +115,7 @@ export default function Settings({ serviceTypes, onServiceTypesChange, canManage
       <p className="text-slate-600 text-sm">Quelles données sont conservées, pourquoi, et comment les supprimer.</p>
       <div className="flex flex-wrap gap-4 text-sm font-medium">
         <a href="/confidentialite/" className="text-red-600 hover:text-red-700 underline">Politique de confidentialité</a>
-        <a href="/confidentialite/#suppression" className="text-red-600 hover:text-red-700 underline">Supprimer mon compte</a>
+        <a href="/supprimer-mon-compte/" className="text-red-600 hover:text-red-700 underline">Supprimer mon compte</a>
       </div>
     </section>
   </div>;

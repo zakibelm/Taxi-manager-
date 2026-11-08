@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { UserSession } from '../types';
 import CompanySection from '../components/CompanySection';
+import DeleteAccount from '../components/DeleteAccount';
 import { DriverProfile, loadProfile, saveProfile, validateProfile } from '../utils/profile';
 
-interface ProfileProps { user: UserSession['user']; welcome?: boolean; onSaved: () => void; onSkip?: () => void; }
+interface ProfileProps { user: UserSession['user']; welcome?: boolean; onSaved: () => void; onSkip?: () => void; onDeleted?: () => void; }
 
 /** Formulaire du profil chauffeur (affiché après la connexion tant qu'il est incomplet). */
-const Profile: React.FC<ProfileProps> = ({ user, welcome, onSaved, onSkip }) => {
+const Profile: React.FC<ProfileProps> = ({ user, welcome, onSaved, onSkip, onDeleted }) => {
   const [form, setForm] = useState<DriverProfile>(() => {
     const p = loadProfile(user.email);
     if (!p.first_name && !p.last_name) { const [first, ...rest] = user.name.trim().split(/\s+/); return { ...p, first_name: first ?? '', last_name: rest.join(' ') }; }
@@ -47,6 +48,7 @@ const Profile: React.FC<ProfileProps> = ({ user, welcome, onSaved, onSkip }) => 
         </div>
       </form>
       <CompanySection />
+      {onDeleted && user.role !== 'admin' && <DeleteAccount onDeleted={onDeleted} />}
     </div>
   );
 };

@@ -123,3 +123,7 @@ En local, avec Android Studio : `TAXIMANAGER_URL=https://… npx cap add android
 - Mode démo : données fictives gardées dans le navigateur, jamais envoyées à n8n ni à OpenRouter.
 - Une panne passagère de n8n ne ferme pas les sessions : seule l'absence réelle du compte ou un changement de mot de passe les invalide.
 - Conservation (Loi 25) : les workflows TM purgent chaque heure les sessions expirées, les liens expirés et les tentatives de connexion de plus de 15 minutes. Les 3 workflows TM ne conservent aucune donnée d'exécution dans n8n (réglages « Save execution data » à *none*).
+
+## Suppression de compte
+
+`POST /api/account/delete` `{ identifier, password, confirm: true }` (mot de passe obligatoire, limité comme la connexion, refusé pour les administrateurs) efface le compte, les courses, les assignations, l'adhésion à une compagnie, les jetons et les sessions, dans SQLite et dans n8n (workflow « Taxi Manager - Suppression de compte TM », chemin `account/erase`). Les courses locales sont retirées d'abord et n8n avant le compte : en cas d'échec, le compte reste et la demande peut être répétée. Interfaces : *Mon profil → Supprimer mon compte* (application) et la page publique `/supprimer-mon-compte/` (lien pour Google Play). Les sauvegardes locales (14 jours) et chiffrées sur Drive (30 jours) expirent d'elles-mêmes.
